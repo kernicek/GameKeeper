@@ -51,6 +51,12 @@
                         <label class="form-label" for="{{ item_form.notes.id_for_label }}">Notes</label>
                         {{ item_form.notes }}
                     </div>
+                    <div class="mb-3 form-check">
+                        {{ item_form.exclusive }}
+                        <label class="form-check-label" for="{{ item_form.exclusive.id_for_label }}">
+                            Campaign exclusive — won't be available at retail or late pledge
+                        </label>
+                    </div>
                     <button class="btn btn-primary" type="submit">Save</button>
                 </form>
                 {% if item %}

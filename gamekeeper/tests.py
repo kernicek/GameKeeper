@@ -933,11 +933,15 @@ class PledgePlanViewTests(TestCase):
 
         response = self.client.post(
             reverse("pledge_plan_item_add", args=[self.plan.pk]),
-            {"name": "Expansion", "category": "expansion", "price": "25", "want_priority": ""},
+            {
+                "name": "Expansion", "category": "expansion", "price": "25",
+                "want_priority": "", "exclusive": "on",
+            },
         )
         self.assertEqual(response.status_code, 302)
         item = PledgePlanItem.objects.get(plan=self.plan, name="Expansion")
         self.assertEqual(item.category, PledgePlanItem.Category.EXPANSION)
+        self.assertTrue(item.exclusive)
 
         response = self.client.post(
             reverse("pledge_plan_item_edit", args=[item.pk]),
@@ -946,10 +950,21 @@ class PledgePlanViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         item.refresh_from_db()
         self.assertEqual(item.price, Decimal("30"))
+        self.assertFalse(item.exclusive)
 
         response = self.client.post(reverse("pledge_plan_item_delete", args=[item.pk]))
         self.assertEqual(response.status_code, 302)
         self.assertFalse(PledgePlanItem.objects.filter(pk=item.pk).exists())
+
+    def test_item_add_defaults_exclusive_to_false(self):
+        self.client.login(username="kernicek", password="pass")
+        response = self.client.post(
+            reverse("pledge_plan_item_add", args=[self.plan.pk]),
+            {"name": "Retail Available", "category": "expansion", "price": "10", "want_priority": ""},
+        )
+        self.assertEqual(response.status_code, 302)
+        item = PledgePlanItem.objects.get(plan=self.plan, name="Retail Available")
+        self.assertFalse(item.exclusive)
 
     def test_item_add_allows_a_blank_individual_price(self):
         # Exclusive add-ons with no separate price (issue #186 grill-me).
@@ -1036,6 +1051,20 @@ class PledgePlanViewTests(TestCase):
 
         self.assertNotIn("{#", body)
         self.assertNotIn("{% comment", body)
+
+    def test_plan_detail_shows_exclusive_icon_only_for_exclusive_items(self):
+        # self.item (from setUpTestData) is non-exclusive.
+        PledgePlanItem.objects.create(
+            plan=self.plan, name="Exclusive Mini", price=Decimal("5"), exclusive=True,
+        )
+        self.client.login(username="kernicek", password="pass")
+        body = self.client.get(
+            reverse("pledge_plan_detail", args=[self.plan.pk]),
+        ).content.decode()
+
+        # One icon in the column header, one more in the exclusive item's
+        # row — none in the non-exclusive item's row.
+        self.assertEqual(body.count("bi-award-fill"), 2)
 
     def test_shortlist_toggle_flips_flag(self):
         self.client.login(username="kernicek", password="pass")
