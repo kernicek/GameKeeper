@@ -19,6 +19,7 @@
 <table class="table table-sm mb-0 align-middle">
     <thead>
         <tr>
+            <th class="text-center" title="Campaign exclusive"><i class="bi bi-award-fill"></i></th>
             <th>Item</th>
             <th>Category</th>
             <th>Priority</th>
@@ -44,6 +45,9 @@
     <tbody>
         {% for item in items %}
         <tr>
+            <td class="text-center">
+                {% if item.exclusive %}<i class="bi bi-award-fill text-warning" title="Campaign exclusive"></i>{% endif %}
+            </td>
             <td>{{ item.name }}</td>
             <td>{{ item.get_category_display }}</td>
             <td>{% if item.want_priority %}{{ item.get_want_priority_display }}{% else %}—{% endif %}</td>
@@ -67,7 +71,7 @@
     </tbody>
     <tfoot>
         <tr>
-            <th colspan="4" class="text-secondary small fw-normal">Value (sum of included items)</th>
+            <th colspan="5" class="text-secondary small fw-normal">Value (sum of included items)</th>
             {% for bundle in bundles %}
             <td class="text-center text-secondary small">
                 {% if bundle.value is not None %}{{ bundle.value|floatformat:"-2" }}{% else %}—{% endif %}
@@ -76,14 +80,14 @@
             <td></td>
         </tr>
         <tr>
-            <th colspan="4">Pledge price</th>
+            <th colspan="5">Pledge price</th>
             {% for bundle in bundles %}
             <td class="text-center">{{ bundle.price|floatformat:"-2" }}</td>
             {% endfor %}
             <td></td>
         </tr>
         <tr>
-            <th colspan="4">Shipping</th>
+            <th colspan="5">Shipping</th>
             {% for bundle in bundles %}
             <td class="text-center">
                 {% if bundle.shipping_cost %}{{ bundle.shipping_cost|floatformat:"-2" }}{% else %}—{% endif %}
@@ -93,7 +97,7 @@
         </tr>
         {% if plan.vat_rate %}
         <tr>
-            <th colspan="4" class="text-secondary small fw-normal">VAT ({{ plan.vat_rate|floatformat:"-2" }}%)</th>
+            <th colspan="5" class="text-secondary small fw-normal">VAT ({{ plan.vat_rate|floatformat:"-2" }}%)</th>
             {% for bundle in bundles %}
             <td class="text-center text-secondary small">{{ bundle.vat_amount|floatformat:"-2" }}</td>
             {% endfor %}
@@ -101,7 +105,7 @@
         </tr>
         {% endif %}
         <tr>
-            <th colspan="4">Total</th>
+            <th colspan="5">Total</th>
             {% for bundle in bundles %}
             <td class="text-center">
                 <strong>{{ bundle.total_cost|floatformat:"-2" }} {{ plan.currency }}</strong>
@@ -113,7 +117,7 @@
             <td></td>
         </tr>
         <tr>
-            <th colspan="4" class="text-secondary small fw-normal">Savings vs. buying items separately</th>
+            <th colspan="5" class="text-secondary small fw-normal">Savings vs. buying items separately</th>
             {% for bundle in bundles %}
             <td class="text-center text-secondary small">
                 {% if bundle.savings is not None %}{{ bundle.savings|floatformat:"-2" }}{% else %}—{% endif %}
@@ -124,7 +128,7 @@
         {% for priority_value, priority_label in priority_choices %}
         {% if priority_value in plan.priority_totals %}
         <tr>
-            <th colspan="4" class="text-secondary small fw-normal">{{ priority_label }} covered</th>
+            <th colspan="5" class="text-secondary small fw-normal">{{ priority_label }} covered</th>
             {% for bundle in bundles %}
             <td class="text-center text-secondary small">
                 {% for p, counts in bundle.priority_coverage.items %}

@@ -2134,6 +2134,10 @@ class PledgePlanItem(models.Model):
         ),
     )
     notes = models.CharField(max_length=300, blank=True)
+    exclusive = models.BooleanField(
+        default=False,
+        help_text="Only available through this campaign — won't be sold at retail or late pledge.",
+    )
 
     class Meta:
         constraints = [

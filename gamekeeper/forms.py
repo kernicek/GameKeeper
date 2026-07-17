@@ -236,7 +236,7 @@ class PledgePlanForm(forms.ModelForm):
 class PledgePlanItemForm(forms.ModelForm):
     class Meta:
         model = PledgePlanItem
-        fields = ["name", "category", "want_priority", "price", "notes"]
+        fields = ["name", "category", "want_priority", "price", "notes", "exclusive"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "category": forms.Select(attrs={"class": "form-select"}),
@@ -244,6 +244,7 @@ class PledgePlanItemForm(forms.ModelForm):
             "price": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0, "step": "0.01"}),
             "notes": forms.TextInput(attrs={"class": "form-control"}),
+            "exclusive": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args, plan, **kwargs):
