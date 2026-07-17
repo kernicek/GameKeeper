@@ -119,6 +119,14 @@
         {% block content %}{% endblock %}
     </main>
 
+    <footer class="container text-secondary small py-3 mt-4 border-top">
+        <div class="d-flex flex-wrap justify-content-between gap-2">
+            <span>GameKeeper{% if APP_VERSION %} {{ APP_VERSION }}{% endif %}</span>
+            <a href="https://github.com/kernicek/GameKeeper" class="text-secondary" target="_blank" rel="noopener">Source on GitHub</a>
+            <span>&copy; 2026 Vojta Karen</span>
+        </div>
+    </footer>
+
     <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
     <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
     {# Draggable cover focal-point marker (issues #12/#13); delegated events, #}

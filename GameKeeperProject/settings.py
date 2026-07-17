@@ -83,6 +83,7 @@ TEMPLATES = [
                 'gamekeeper.context_processors.environment',
                 'gamekeeper.context_processors.impersonation',
                 'gamekeeper.context_processors.update_notice',
+                'gamekeeper.context_processors.footer',
             ],
         },
     },
