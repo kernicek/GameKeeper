@@ -8,7 +8,7 @@
 {% elif shortlisted_count %}
 <p class="small mb-2">
     Showing all {{ all_bundles_count }} bundles ({{ shortlisted_count }} shortlisted) —
-    <a href="{% url 'pledge_plan_detail' plan.pk %}">show shortlisted only</a>.
+    <a href="{% url 'pledge_plan_detail' purchase.pk %}">show shortlisted only</a>.
 </p>
 {% elif all_bundles_count %}
 <p class="small mb-2 text-secondary">
