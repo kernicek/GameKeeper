@@ -19,7 +19,7 @@
        href="{% url 'purchase_edit' purchase.pk %}">Edit</a>
     {% if pledge_plan %}
     <a class="btn btn-sm btn-outline-secondary align-middle"
-       href="{% url 'pledge_plan_detail' pledge_plan.pk %}">Pledge plan</a>
+       href="{% url 'pledge_plan_detail' purchase.pk %}">Pledge plan</a>
     {% else %}
     <a class="btn btn-sm btn-outline-secondary align-middle"
        href="{% url 'pledge_plan_add' purchase.pk %}">Start pledge plan</a>

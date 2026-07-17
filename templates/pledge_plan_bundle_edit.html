@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex align-items-baseline justify-content-between mb-3">
     <h1 class="h3 mb-0">{% if bundle %}Edit bundle{% else %}Add bundle{% endif %} — {{ purchase.name }}</h1>
-    <a class="small" href="{% url 'pledge_plan_detail' plan.pk %}">back to plan</a>
+    <a class="small" href="{% url 'pledge_plan_detail' purchase.pk %}">back to plan</a>
 </div>
 
 <div class="row">
@@ -14,7 +14,7 @@
             <div class="card-header">Bundle</div>
             <div class="card-body">
                 <form method="post"
-                      action="{% if bundle %}{% url 'pledge_plan_bundle_edit' bundle.pk %}{% else %}{% url 'pledge_plan_bundle_add' plan.pk %}{% endif %}">
+                      action="{% if bundle %}{% url 'pledge_plan_bundle_edit' bundle.pk %}{% else %}{% url 'pledge_plan_bundle_add' purchase.pk %}{% endif %}">
                     {% csrf_token %}
                     {% if bundle_form.non_field_errors %}
                     <div class="alert alert-warning py-2">{{ bundle_form.non_field_errors.0 }}</div>

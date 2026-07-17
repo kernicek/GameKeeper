@@ -1945,7 +1945,7 @@ def product_convert(request, pk):
 def pledge_plan_add(request, purchase_pk):
     purchase = get_object_or_404(Purchase, pk=purchase_pk, owner=request.user)
     if hasattr(purchase, "pledge_plan"):
-        return redirect("pledge_plan_detail", pk=purchase.pledge_plan.pk)
+        return redirect("pledge_plan_detail", purchase_pk=purchase.pk)
     plan = PledgePlan(purchase=purchase)
     if request.method != "POST":
         return render(request, "pledge_plan_add.html", {
@@ -1958,15 +1958,17 @@ def pledge_plan_add(request, purchase_pk):
             "purchase": purchase, "plan_form": plan_form,
         })
     plan = plan_form.save()
-    return redirect("pledge_plan_detail", pk=plan.pk)
+    return redirect("pledge_plan_detail", purchase_pk=purchase.pk)
 
 
 @login_required
-def pledge_plan_edit(request, pk):
+def pledge_plan_edit(request, purchase_pk):
     """Edit an existing plan's currency/VAT rate/CZK rate — the settings
     entered once on pledge_plan_add, revisited as the campaign's numbers
     firm up."""
-    plan = get_object_or_404(PledgePlan, pk=pk, purchase__owner=request.user)
+    plan = get_object_or_404(
+        PledgePlan, purchase__pk=purchase_pk, purchase__owner=request.user,
+    )
     if request.method != "POST":
         return render(request, "pledge_plan_add.html", {
             "purchase": plan.purchase, "plan": plan,
@@ -1978,7 +1980,7 @@ def pledge_plan_edit(request, pk):
             "purchase": plan.purchase, "plan": plan, "plan_form": plan_form,
         })
     plan_form.save()
-    return redirect("pledge_plan_detail", pk=plan.pk)
+    return redirect("pledge_plan_detail", purchase_pk=plan.purchase_id)
 
 
 def _pledge_plan_table_context(plan, view_mode="auto"):
@@ -2003,11 +2005,11 @@ def _pledge_plan_table_context(plan, view_mode="auto"):
 
 
 @login_required
-def pledge_plan_detail(request, pk):
+def pledge_plan_detail(request, purchase_pk):
     plan = get_object_or_404(
         PledgePlan.objects.select_related("purchase")
         .prefetch_related("items", "bundles__items"),
-        pk=pk, purchase__owner=request.user,
+        purchase__pk=purchase_pk, purchase__owner=request.user,
     )
     view_mode = request.GET.get("view", "auto")
     return render(request, "pledge_plan_detail.html",
@@ -2015,8 +2017,10 @@ def pledge_plan_detail(request, pk):
 
 
 @login_required
-def pledge_plan_item_add(request, pk):
-    plan = get_object_or_404(PledgePlan, pk=pk, purchase__owner=request.user)
+def pledge_plan_item_add(request, purchase_pk):
+    plan = get_object_or_404(
+        PledgePlan, purchase__pk=purchase_pk, purchase__owner=request.user,
+    )
     item = PledgePlanItem(plan=plan)
     if request.method != "POST":
         return render(request, "pledge_plan_item_edit.html", {
@@ -2029,7 +2033,7 @@ def pledge_plan_item_add(request, pk):
             "plan": plan, "purchase": plan.purchase, "item_form": item_form,
         })
     item_form.save()
-    return redirect("pledge_plan_detail", pk=plan.pk)
+    return redirect("pledge_plan_detail", purchase_pk=plan.purchase_id)
 
 
 @login_required
@@ -2051,23 +2055,26 @@ def pledge_plan_item_edit(request, pk):
             "item_form": item_form,
         })
     item_form.save()
-    return redirect("pledge_plan_detail", pk=plan.pk)
+    return redirect("pledge_plan_detail", purchase_pk=plan.purchase_id)
 
 
 @login_required
 @require_POST
 def pledge_plan_item_delete(request, pk):
     item = get_object_or_404(
-        PledgePlanItem, pk=pk, plan__purchase__owner=request.user,
+        PledgePlanItem.objects.select_related("plan"),
+        pk=pk, plan__purchase__owner=request.user,
     )
-    plan_pk = item.plan_id
+    purchase_pk = item.plan.purchase_id
     item.delete()
-    return redirect("pledge_plan_detail", pk=plan_pk)
+    return redirect("pledge_plan_detail", purchase_pk=purchase_pk)
 
 
 @login_required
-def pledge_plan_bundle_add(request, pk):
-    plan = get_object_or_404(PledgePlan, pk=pk, purchase__owner=request.user)
+def pledge_plan_bundle_add(request, purchase_pk):
+    plan = get_object_or_404(
+        PledgePlan, purchase__pk=purchase_pk, purchase__owner=request.user,
+    )
     bundle = PledgePlanBundle(plan=plan)
     if request.method != "POST":
         return render(request, "pledge_plan_bundle_edit.html", {
@@ -2080,7 +2087,7 @@ def pledge_plan_bundle_add(request, pk):
             "plan": plan, "purchase": plan.purchase, "bundle_form": bundle_form,
         })
     bundle_form.save()
-    return redirect("pledge_plan_detail", pk=plan.pk)
+    return redirect("pledge_plan_detail", purchase_pk=plan.purchase_id)
 
 
 @login_required
@@ -2102,18 +2109,19 @@ def pledge_plan_bundle_edit(request, pk):
             "bundle_form": bundle_form,
         })
     bundle_form.save()
-    return redirect("pledge_plan_detail", pk=plan.pk)
+    return redirect("pledge_plan_detail", purchase_pk=plan.purchase_id)
 
 
 @login_required
 @require_POST
 def pledge_plan_bundle_delete(request, pk):
     bundle = get_object_or_404(
-        PledgePlanBundle, pk=pk, plan__purchase__owner=request.user,
+        PledgePlanBundle.objects.select_related("plan"),
+        pk=pk, plan__purchase__owner=request.user,
     )
-    plan_pk = bundle.plan_id
+    purchase_pk = bundle.plan.purchase_id
     bundle.delete()
-    return redirect("pledge_plan_detail", pk=plan_pk)
+    return redirect("pledge_plan_detail", purchase_pk=purchase_pk)
 
 
 @login_required
@@ -2134,7 +2142,7 @@ def pledge_plan_bundle_item_toggle(request, pk, item_pk):
     if request.headers.get("HX-Request"):
         return render(request, "partials/pledge_plan_table.html",
                       _pledge_plan_table_context(plan, view_mode))
-    return redirect(f"{reverse('pledge_plan_detail', args=[plan.pk])}?view={view_mode}")
+    return redirect(f"{reverse('pledge_plan_detail', args=[plan.purchase_id])}?view={view_mode}")
 
 
 @login_required
@@ -2153,7 +2161,7 @@ def pledge_plan_bundle_shortlist_toggle(request, pk):
     if request.headers.get("HX-Request"):
         return render(request, "partials/pledge_plan_table.html",
                       _pledge_plan_table_context(plan, view_mode))
-    return redirect(f"{reverse('pledge_plan_detail', args=[plan.pk])}?view={view_mode}")
+    return redirect(f"{reverse('pledge_plan_detail', args=[plan.purchase_id])}?view={view_mode}")
 
 
 # ---------------------------------------------------------------------------

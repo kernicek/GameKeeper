@@ -8,7 +8,7 @@
         {% if plan %}Edit pledge plan{% else %}Start a pledge plan{% endif %} — {{ purchase.name }}
     </h1>
     {% if plan %}
-    <a class="small" href="{% url 'pledge_plan_detail' plan.pk %}">back to plan</a>
+    <a class="small" href="{% url 'pledge_plan_detail' purchase.pk %}">back to plan</a>
     {% else %}
     <a class="small" href="{% url 'purchase_detail' purchase.pk %}">back to {{ purchase.name }}</a>
     {% endif %}
@@ -20,7 +20,7 @@
             <div class="card-header">Plan currency</div>
             <div class="card-body">
                 <form method="post"
-                      action="{% if plan %}{% url 'pledge_plan_edit' plan.pk %}{% else %}{% url 'pledge_plan_add' purchase.pk %}{% endif %}">
+                      action="{% if plan %}{% url 'pledge_plan_edit' purchase.pk %}{% else %}{% url 'pledge_plan_add' purchase.pk %}{% endif %}">
                     {% csrf_token %}
                     {% if plan_form.non_field_errors %}
                     <div class="alert alert-warning py-2">{{ plan_form.non_field_errors.0 }}</div>

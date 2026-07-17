@@ -897,6 +897,9 @@ class PledgePlanViewTests(TestCase):
         )
         purchase.refresh_from_db()
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.url, reverse("pledge_plan_detail", args=[purchase.pk]),
+        )
         self.assertEqual(purchase.pledge_plan.currency, "USD")
 
     def test_pledge_plan_add_404s_for_a_foreign_purchase(self):
@@ -908,13 +911,13 @@ class PledgePlanViewTests(TestCase):
 
     def test_pledge_plan_detail_404s_for_a_foreign_plan(self):
         self.client.login(username="kernicek", password="pass")
-        response = self.client.get(reverse("pledge_plan_detail", args=[self.foreign_plan.pk]))
+        response = self.client.get(reverse("pledge_plan_detail", args=[self.foreign_purchase.pk]))
         self.assertEqual(response.status_code, 404)
 
     def test_pledge_plan_edit_updates_currency_and_rates(self):
         self.client.login(username="kernicek", password="pass")
         response = self.client.post(
-            reverse("pledge_plan_edit", args=[self.plan.pk]),
+            reverse("pledge_plan_edit", args=[self.purchase.pk]),
             {"currency": "usd", "vat_rate": "21", "czk_rate": "24.5"},
         )
         self.assertEqual(response.status_code, 302)
@@ -925,14 +928,14 @@ class PledgePlanViewTests(TestCase):
 
     def test_pledge_plan_edit_404s_for_a_foreign_plan(self):
         self.client.login(username="kernicek", password="pass")
-        response = self.client.get(reverse("pledge_plan_edit", args=[self.foreign_plan.pk]))
+        response = self.client.get(reverse("pledge_plan_edit", args=[self.foreign_purchase.pk]))
         self.assertEqual(response.status_code, 404)
 
     def test_item_add_edit_and_delete_round_trip(self):
         self.client.login(username="kernicek", password="pass")
 
         response = self.client.post(
-            reverse("pledge_plan_item_add", args=[self.plan.pk]),
+            reverse("pledge_plan_item_add", args=[self.purchase.pk]),
             {
                 "name": "Expansion", "category": "expansion", "price": "25",
                 "want_priority": "", "exclusive": "on",
@@ -959,7 +962,7 @@ class PledgePlanViewTests(TestCase):
     def test_item_add_defaults_exclusive_to_false(self):
         self.client.login(username="kernicek", password="pass")
         response = self.client.post(
-            reverse("pledge_plan_item_add", args=[self.plan.pk]),
+            reverse("pledge_plan_item_add", args=[self.purchase.pk]),
             {"name": "Retail Available", "category": "expansion", "price": "10", "want_priority": ""},
         )
         self.assertEqual(response.status_code, 302)
@@ -970,7 +973,7 @@ class PledgePlanViewTests(TestCase):
         # Exclusive add-ons with no separate price (issue #186 grill-me).
         self.client.login(username="kernicek", password="pass")
         response = self.client.post(
-            reverse("pledge_plan_item_add", args=[self.plan.pk]),
+            reverse("pledge_plan_item_add", args=[self.purchase.pk]),
             {"name": "Exclusive Mini", "category": "accessory", "price": "", "want_priority": ""},
         )
         self.assertEqual(response.status_code, 302)
@@ -988,7 +991,7 @@ class PledgePlanViewTests(TestCase):
     def test_duplicate_item_name_in_same_plan_is_rejected(self):
         self.client.login(username="kernicek", password="pass")
         response = self.client.post(
-            reverse("pledge_plan_item_add", args=[self.plan.pk]),
+            reverse("pledge_plan_item_add", args=[self.purchase.pk]),
             {"name": "Core Box", "category": "board_game", "price": "1", "want_priority": ""},
         )
         self.assertEqual(response.status_code, 200)
@@ -998,7 +1001,7 @@ class PledgePlanViewTests(TestCase):
         self.client.login(username="kernicek", password="pass")
 
         response = self.client.post(
-            reverse("pledge_plan_bundle_add", args=[self.plan.pk]),
+            reverse("pledge_plan_bundle_add", args=[self.purchase.pk]),
             {"name": "Core only", "price": "40", "shipping_cost": "10"},
         )
         self.assertEqual(response.status_code, 302)
@@ -1046,7 +1049,7 @@ class PledgePlanViewTests(TestCase):
     def test_pledge_plan_never_leaks_template_comment_markers(self):
         self.client.login(username="kernicek", password="pass")
         body = self.client.get(
-            reverse("pledge_plan_detail", args=[self.plan.pk]),
+            reverse("pledge_plan_detail", args=[self.purchase.pk]),
         ).content.decode()
 
         self.assertNotIn("{#", body)
@@ -1059,7 +1062,7 @@ class PledgePlanViewTests(TestCase):
         )
         self.client.login(username="kernicek", password="pass")
         body = self.client.get(
-            reverse("pledge_plan_detail", args=[self.plan.pk]),
+            reverse("pledge_plan_detail", args=[self.purchase.pk]),
         ).content.decode()
 
         # One icon in the column header, one more in the exclusive item's
@@ -1095,19 +1098,19 @@ class PledgePlanViewTests(TestCase):
         self.client.login(username="kernicek", password="pass")
 
         # Nothing starred yet — both bundles show.
-        body = self.client.get(reverse("pledge_plan_detail", args=[self.plan.pk])).content.decode()
+        body = self.client.get(reverse("pledge_plan_detail", args=[self.purchase.pk])).content.decode()
         self.assertIn("All-in", body)
         self.assertIn("Core only", body)
 
         self.client.post(reverse("pledge_plan_bundle_shortlist_toggle", args=[self.bundle.pk]))
 
-        body = self.client.get(reverse("pledge_plan_detail", args=[self.plan.pk])).content.decode()
+        body = self.client.get(reverse("pledge_plan_detail", args=[self.purchase.pk])).content.decode()
         self.assertIn("All-in", body)
         self.assertNotIn("Core only", body)
         self.assertIn("show all", body)
 
         body = self.client.get(
-            reverse("pledge_plan_detail", args=[self.plan.pk]), {"view": "all"},
+            reverse("pledge_plan_detail", args=[self.purchase.pk]), {"view": "all"},
         ).content.decode()
         self.assertIn("All-in", body)
         self.assertIn("Core only", body)
