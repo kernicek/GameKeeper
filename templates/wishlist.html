@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Wishlist | GameKeeper{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Wishlist</h1>
+
+{# Entries are added from the dashboard's new-expansions widget, or removed #}
+{# here (issue #117) — removal pushes the drop to BGG when wishlist is the #}
+{# game's current tracked status there. #}
+<div class="card">
+    <div class="card-body p-0" id="wishlist-results">
+        {% include "partials/wishlist_table.html" %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}{% if family %}Edit — {{ family.name }}{% else %}New family{% endif %} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Family editor (DESIGN §4, issue #42): the series editor's shape without #}
+{# the primary column — a family has no representative member. Members are #}
+{# a loose M2M, so every base game is a candidate (no claimed-elsewhere #}
+{# restriction). The optional cover gets the shared htmx editor once the #}
+{# family exists; the add page keeps a plain file input (no pk yet). #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">{% if family %}Edit — {{ family.name }}{% else %}New family{% endif %}</h1>
+    {% if family %}
+    <a class="small" href="{% url 'family_detail' family.pk %}">back to family</a>
+    {% else %}
+    <a class="small" href="{% url 'collection' %}">back to collection</a>
+    {% endif %}
+</div>
+
+<div class="row g-4">
+    {% if family %}
+    <div class="col-md-4 col-lg-3" id="cover-column">
+        {% url 'family_cover_edit' family.pk as cover_edit_url %}
+        {% url 'family_cover_focus' family.pk as cover_focus_url %}
+        {% include "partials/cover_editor.html" with game=family cover_can_clear=True %}
+    </div>
+    {% endif %}
+
+    <div class="{% if family %}col-md-8 col-lg-9{% else %}col-12{% endif %}">
+        <div class="card">
+            <div class="card-header">
+                {% if family %}Family details{% else %}Loosely associate related-but-distinct games{% endif %}
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data"
+                      action="{% if family %}{% url 'family_edit' family.pk %}{% else %}{% url 'family_add' %}{% endif %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="family-name">Name</label>
+                        <input class="form-control" type="text" id="family-name"
+                               name="name" value="{{ family.name|default:'' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="family-note">Note</label>
+                        <textarea class="form-control" id="family-note" name="note"
+                                  rows="2">{{ family.note|default:'' }}</textarea>
+                        <div class="form-text">
+                            What ties these games together — shown on the family page.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="family-bgg-id">BGG family id</label>
+                        <input class="form-control" type="number" id="family-bgg-id"
+                               name="bgg_family_id" min="1" placeholder="optional"
+                               value="{{ family.bgg_family_id|default_if_none:'' }}">
+                        <div class="form-text">
+                            The number in boardgamegeek.com/boardgamefamily/&lt;id&gt;.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <span class="form-label d-block">Members</span>
+                        <div class="form-text mb-2">
+                            Base games only. A game may belong to several families.
+                        </div>
+                        <input class="form-control form-control-sm mb-2" type="search"
+                               id="member-filter" placeholder="Filter games…"
+                               autocomplete="off" aria-label="Filter games">
+                        <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="member-table">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th>Game</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for game in candidates %}
+                                {# data-name feeds the filter; hiding rows (never #}
+                                {# disabling) keeps checked members submitting. #}
+                                <tr data-name="{{ game.name|lower }} {{ game.bgg_name|lower }}">
+                                    <td class="text-center">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="members" value="{{ game.pk }}"
+                                               id="member-{{ game.pk }}"
+                                               {% if game.pk in member_pks %}checked{% endif %}>
+                                    </td>
+                                    <td><label for="member-{{ game.pk }}">{{ game.name }}</label></td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="2" class="text-secondary">No base games yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+
+                    {% if not family %}
+                    <div class="mb-3">
+                        <label class="form-label" for="family-cover">Cover (optional)</label>
+                        <input class="form-control" type="file" id="family-cover"
+                               name="cover" accept="image/*">
+                        <div class="form-text">
+                            Shown on the family page (and the future families
+                            overview). Focus and zoom tools appear here once the
+                            family is saved.
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <button class="btn btn-primary" type="submit">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Member filter (the #54 pattern): client-side so in-progress checkbox
+    // picks survive typing — rows are hidden, never re-rendered or disabled.
+    const memberFilter = document.getElementById("member-filter");
+    memberFilter.addEventListener("input", () => {
+        const q = memberFilter.value.trim().toLowerCase();
+        for (const row of document.querySelectorAll("#member-table tbody tr[data-name]")) {
+            row.hidden = Boolean(q) && !row.dataset.name.includes(q);
+        }
+    });
+</script>
+{% endblock %}

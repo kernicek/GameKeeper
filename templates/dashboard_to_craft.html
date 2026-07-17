@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}To craft | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">To craft</h1>
+    <a class="small" href="{% url 'dashboard' %}">Back to dashboard</a>
+</div>
+
+{# Full, uncapped to-craft list (issue #19) — shares the table partial with #}
+{# the dashboard card so the two never diverge. #}
+<div class="card">
+    <div class="card-body p-0" id="to-craft-table">
+        {% include "partials/to_craft_table.html" %}
+    </div>
+</div>
+{% endblock %}

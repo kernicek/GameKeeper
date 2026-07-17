@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% load admin_links %}
+{% load status_badges %}
+
+{% block title %}{{ purchase.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+<nav class="mb-3">
+    <a class="small" href="{% url 'purchases' %}">&larr; All purchases</a>
+</nav>
+
+<div class="d-flex align-items-baseline flex-wrap gap-2 mb-3">
+    <h1 class="h3 mb-0">{{ purchase.name }}</h1>
+    <span class="badge {% if purchase.status == 'committed' %}text-bg-success{% elif purchase.status == 'watching' %}text-bg-info{% elif purchase.status == 'refunded' %}text-bg-warning{% elif purchase.status == 'never_delivered' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">
+        {{ purchase.get_status_display }}
+    </span>
+    {% if fulfilled %}<span class="badge text-bg-secondary">fulfilled</span>{% endif %}
+    <a class="btn btn-sm btn-outline-secondary align-middle ms-2"
+       href="{% url 'purchase_edit' purchase.pk %}">Edit</a>
+    {% if pledge_plan %}
+    <a class="btn btn-sm btn-outline-secondary align-middle"
+       href="{% url 'pledge_plan_detail' pledge_plan.pk %}">Pledge plan</a>
+    {% else %}
+    <a class="btn btn-sm btn-outline-secondary align-middle"
+       href="{% url 'pledge_plan_add' purchase.pk %}">Start pledge plan</a>
+    {% endif %}
+    {% admin_edit_link purchase %}
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Campaign</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Platform</dt>
+                    <dd class="col-sm-8">
+                        {% if purchase.campaign_url %}
+                            <a href="{{ purchase.campaign_url }}">{{ purchase.get_platform_display }}</a>
+                        {% else %}
+                            {{ purchase.get_platform_display }}
+                        {% endif %}
+                    </dd>
+                    {% if purchase.campaign_end_date %}
+                    <dt class="col-sm-4">Campaign ends</dt>
+                    <dd class="col-sm-8">{{ purchase.campaign_end_date|date:"j M Y" }}</dd>
+                    {% endif %}
+                    {% if purchase.ordered_date %}
+                    <dt class="col-sm-4">Ordered</dt>
+                    <dd class="col-sm-8">{{ purchase.ordered_date|date:"j M Y" }}</dd>
+                    {% endif %}
+                    {% if purchase.excitement is not None or purchase.excitement_note %}
+                    <dt class="col-sm-4">Excitement</dt>
+                    <dd class="col-sm-8">
+                        {% if purchase.excitement is not None %}{{ purchase.excitement }}{% endif %}
+                        {% if purchase.excitement_note %}
+                            <span class="text-secondary small">{{ purchase.excitement_note }}</span>
+                        {% endif %}
+                    </dd>
+                    {% endif %}
+                    {% if purchase.comments %}
+                    <dt class="col-sm-4">Comments</dt>
+                    <dd class="col-sm-8">{{ purchase.comments|linebreaksbr }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Pledge manager</div>
+            <div class="card-body">
+                {% if purchase.pledge_manager or purchase.pledge_manager_status or purchase.pledge_manager_url %}
+                <dl class="row mb-0">
+                    {% if purchase.pledge_manager or purchase.pledge_manager_url %}
+                    <dt class="col-sm-4">Manager</dt>
+                    <dd class="col-sm-8">
+                        {% with url=purchase.get_pledge_manager_effective_url %}
+                        {% if url %}
+                            <a href="{{ url }}">{{ purchase.pledge_manager|default:"link" }}</a>
+                        {% else %}
+                            {{ purchase.pledge_manager }}
+                        {% endif %}
+                        {% endwith %}
+                    </dd>
+                    {% endif %}
+                    {% if purchase.pledge_manager_status %}
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">{{ purchase.get_pledge_manager_status_display }}</dd>
+                    {% endif %}
+                    {% if purchase.pledge_manager_close_date %}
+                    <dt class="col-sm-4">Closes</dt>
+                    <dd class="col-sm-8">{{ purchase.pledge_manager_close_date|date:"j M Y" }}</dd>
+                    {% endif %}
+                </dl>
+                {% else %}
+                <p class="text-secondary mb-0">No pledge manager recorded.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for wave in waves %}
+<div class="card mb-4">
+    <div class="card-header d-flex align-items-center flex-wrap gap-2">
+        <span>Wave {{ wave.number }}</span>
+        <span class="badge {{ wave.status|wave_status_class }}">
+            {{ wave.get_status_display }}
+        </span>
+        {% if wave.delivery_type == "digital" %}
+            <span class="badge text-bg-info">digital</span>
+        {% endif %}
+        {% if wave.delay_days and wave.delay_days > 0 %}
+            <span class="text-warning small">+{{ wave.delay_days }}d vs. original ETA</span>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            {% if wave.original_eta %}
+            <dt class="col-sm-3">Original ETA</dt>
+            <dd class="col-sm-9">{{ wave.original_eta|date:"M Y" }}</dd>
+            {% endif %}
+            {% if wave.expected_arrival %}
+            <dt class="col-sm-3">Expected</dt>
+            <dd class="col-sm-9">{{ wave.expected_arrival|date:"M Y" }}</dd>
+            {% endif %}
+            {% if wave.arrived_date %}
+            <dt class="col-sm-3">Arrived</dt>
+            <dd class="col-sm-9">{{ wave.arrived_date|date:"j M Y" }}</dd>
+            {% endif %}
+            {% if wave.address %}
+            <dt class="col-sm-3">Ships to</dt>
+            <dd class="col-sm-9">{{ wave.address }}</dd>
+            {% endif %}
+            {% if wave.tracking_url %}
+            <dt class="col-sm-3">Tracking</dt>
+            <dd class="col-sm-9"><a href="{{ wave.tracking_url }}">{{ wave.tracking_url|truncatechars:60 }}</a></dd>
+            {% endif %}
+        </dl>
+    </div>
+    {% if wave.products.all %}
+    <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+        <thead>
+            <tr><th>Item</th><th>Game</th><th>Kind</th><th>Notes</th><th class="text-end"></th></tr>
+        </thead>
+        <tbody>
+            {% for product in wave.products.all %}
+            <tr>
+                <td>
+                    <a href="{% url 'product_detail' product.pk %}">{{ product.name }}</a>
+                    {% if product.drive_url %}
+                        <a class="small" href="{{ product.drive_url }}">files</a>
+                    {% endif %}
+                    {% if product.copy_id %}
+                        <span class="badge text-bg-success">in collection</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if product.game_id %}
+                        <a href="{% url 'game_detail' product.game_id %}">{{ product.game.name }}</a>
+                        {% if not product.copy_id and wave.status == "arrived" %}
+                        {# §6 arrival seam: the product becomes a Copy (issue #}
+                        {# #5). Edition select only when the product doesn't #}
+                        {# pin one and the game has editions to pick from — #}
+                        {# edition-less games get their default created. #}
+                        <form class="d-inline-flex gap-2 align-items-center ms-2"
+                              method="post" action="{% url 'product_convert' product.pk %}">
+                            {% csrf_token %}
+                            {% if not product.edition_id and product.game.editions.all %}
+                            <select class="form-select form-select-sm w-auto" name="edition">
+                                {% for edition in product.game.editions.all %}
+                                <option value="{{ edition.pk }}" {% if edition.is_default %}selected{% endif %}>
+                                    {{ edition.name|default:"default edition" }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-primary text-nowrap"
+                                    type="submit">Convert to copy</button>
+                        </form>
+                        {% endif %}
+                    {% elif product.bgg_url %}
+                        <a href="{{ product.bgg_url }}">BGG</a>
+                    {% else %}—{% endif %}
+                </td>
+                <td><span class="badge text-bg-secondary">{{ product.get_kind_display }}</span></td>
+                <td class="text-secondary small">{{ product.notes|default:"—" }}</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-secondary py-0 px-1"
+                       href="{% url 'product_edit' product.pk %}">Edit</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-secondary px-3 pb-3 mb-0">No items recorded on this wave.</p>
+    {% endif %}
+</div>
+{% empty %}
+<div class="alert alert-secondary">No waves on this purchase.</div>
+{% endfor %}
+{% endblock %}

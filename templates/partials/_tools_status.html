@@ -1,0 +1,63 @@
+{# Tools page cards + last-run status (issue #90). Swapped in after each POST #}
+{# to tools_run, and — while a job is running — self-polled via tools_status #}
+{# so the result appears once the Celery task finishes. No messages framework #}
+{# here, so each run's outcome shows inline (same convention as #}
+{# _bgg_sync_status.html). #}
+{% if any_running %}
+<div hx-get="{% url 'tools_status' %}" hx-trigger="every 2s" hx-target="#tools-status"
+     hx-swap="innerHTML" class="d-none"></div>
+{% endif %}
+<div class="row g-4">
+    {% for kind in kinds %}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">{{ kind.label }}</div>
+            <div class="card-body d-flex flex-column">
+                <p class="text-secondary small">{{ kind.description }}</p>
+                <form method="post" action="{% url 'tools_run' kind.key %}"
+                      hx-post="{% url 'tools_run' kind.key %}"
+                      hx-target="#tools-status" hx-swap="innerHTML" class="mb-3">
+                    {% csrf_token %}
+                    {% if kind.running %}
+                    <button type="submit" class="btn btn-secondary" disabled>
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        Running…
+                    </button>
+                    {% else %}
+                    <button type="submit" class="btn btn-primary">Run {{ kind.label }}</button>
+                    {% endif %}
+                </form>
+
+                <div class="mt-auto small">
+                    {% with run=kind.latest %}
+                    {% if run %}
+                        {% if run.status == "running" %}
+                        <div class="text-info-emphasis">
+                            Started {{ run.started_at|date:"j M Y, H:i" }}
+                            {% if run.triggered_by %}by {{ run.triggered_by.username }}{% endif %}…
+                        </div>
+                        {% elif run.status == "success" %}
+                        <div class="text-success">
+                            &check; Last run {{ run.finished_at|date:"j M Y, H:i" }} — success.
+                        </div>
+                        {% else %}
+                        <div class="text-danger">
+                            &cross; Last run {{ run.finished_at|date:"j M Y, H:i" }} — failed.
+                        </div>
+                        {% endif %}
+                        {% if run.summary %}
+                        <details class="mt-2">
+                            <summary class="text-secondary">Output</summary>
+                            <pre class="small text-secondary mt-2 mb-0" style="white-space: pre-wrap;">{{ run.summary }}</pre>
+                        </details>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-secondary">Never run.</div>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>

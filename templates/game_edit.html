@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ game.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Game edit page (DESIGN §13): cover tools on the left, the user-owned #}
+{# details on the right. BGG-synced stats are deliberately not here — the #}
+{# §8 sync would overwrite them; type/expands/editions stay in the admin. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Edit — {{ game.name }}</h1>
+    <a class="small" href="{% url 'game_detail' game.pk %}">back to game</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4 col-lg-3" id="cover-column">
+        {% url 'game_cover_edit' game.pk as cover_edit_url %}
+        {% url 'game_cover_focus' game.pk as cover_focus_url %}
+        {% include "partials/cover_editor.html" %}
+    </div>
+
+    <div class="col-md-8 col-lg-9">
+        <div class="card">
+            <div class="card-header">Details</div>
+            <div class="card-body">
+                <form method="post" action="{% url 'game_edit' game.pk %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-name">Name</label>
+                        <input class="form-control" type="text" id="edit-name"
+                               name="name" value="{{ game.name }}" required>
+                        {% if game.bgg_name and game.bgg_name != game.name %}
+                        <div class="form-text">BGG calls it “{{ game.bgg_name }}”.</div>
+                        {% endif %}
+                    </div>
+
+                    {# Issue #51: localized/alternate titles, one per line. #}
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-alt-names">Alternate names</label>
+                        <textarea class="form-control" id="edit-alt-names" rows="3"
+                                  name="alternate_names">{% for alt in game.alternate_names.all %}{{ alt.name }}
+{% endfor %}</textarea>
+                        <div class="form-text">One per line — localized or common alternate titles. Also searchable in the collection.</div>
+                    </div>
+
+                    {% if game.type == "base" %}
+                    {# Issue #78: Series/Family membership — existing entries only; #}
+                    {# creating a new one stays on its own page. #}
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-series">Series</label>
+                        <select class="form-select" id="edit-series" name="series">
+                            <option value="">—</option>
+                            {% for series in series_choices %}
+                            <option value="{{ series.pk }}" {% if game.series_id == series.pk %}selected{% endif %}>{{ series.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <span class="form-label d-block">Families</span>
+                        {% for family in family_choices %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="edit-family-{{ family.pk }}"
+                                   name="families" value="{{ family.pk }}"
+                                   {% if family.pk in family_pks %}checked{% endif %}>
+                            <label class="form-check-label" for="edit-family-{{ family.pk }}">{{ family.name }}</label>
+                        </div>
+                        {% empty %}
+                        <div class="form-text">No families yet.</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-language">Language dependency</label>
+                        <select class="form-select" id="edit-language" name="language_dependency">
+                            <option value="">—</option>
+                            {% for value, label in language_dependency_choices %}
+                            <option value="{{ value }}" {% if game.language_dependency == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-language-note">Language note</label>
+                        <input class="form-control" type="text" id="edit-language-note"
+                               name="language_dependency_note"
+                               value="{{ game.language_dependency_note }}">
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label d-block">Structure</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-campaign"
+                                       name="is_campaign" {% if game.is_campaign %}checked{% endif %}>
+                                <label class="form-check-label" for="edit-campaign">Campaign</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-legacy"
+                                       name="is_legacy" {% if game.is_legacy %}checked{% endif %}>
+                                <label class="form-check-label" for="edit-legacy">Legacy</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-scenarios"
+                                       name="has_scenarios" {% if game.has_scenarios %}checked{% endif %}>
+                                <label class="form-check-label" for="edit-scenarios">Scenarios</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-one-off"
+                                       name="is_one_off" {% if game.is_one_off %}checked{% endif %}>
+                                <label class="form-check-label" for="edit-one-off">One-off</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label d-block">Flags</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-app-version"
+                                       name="has_app_version" {% if game.has_app_version %}checked{% endif %}>
+                                <label class="form-check-label" for="edit-app-version">Digital version exists</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="edit-companion">Companion app</label>
+                            <select class="form-select" id="edit-companion" name="companion_app">
+                                <option value="">—</option>
+                                {% for value, label in app_use_choices %}
+                                <option value="{{ value }}" {% if game.companion_app == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label d-block">Soundtrack</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-ambience"
+                                       name="soundtrack_ambience" {% if game.soundtrack_ambience %}checked{% endif %}>
+                                <label class="form-check-label" for="edit-ambience">Ambience</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="edit-timer"
+                                       name="soundtrack_timer" {% if game.soundtrack_timer %}checked{% endif %}>
+                                <label class="form-check-label" for="edit-timer">Timer</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label" for="edit-conflict">Player conflict (0–3)</label>
+                            <input class="form-control" type="number" id="edit-conflict"
+                                   name="player_conflict" min="0" max="3"
+                                   value="{{ game.player_conflict|default_if_none:'' }}">
+                        </div>
+                        <div class="col-sm-9 mb-3">
+                            <label class="form-label" for="edit-conflict-note">Conflict note</label>
+                            <input class="form-control" type="text" id="edit-conflict-note"
+                                   name="player_conflict_note"
+                                   value="{{ game.player_conflict_note }}">
+                        </div>
+                    </div>
+
+                    {% if game.type == "expansion" %}
+                    <div class="row">
+                        {# DESIGN §4 per-expansion overrides; blank = use BGG stats. #}
+                        <div class="col-sm-4 mb-3">
+                            <label class="form-label" for="edit-min-override">Min players override</label>
+                            <input class="form-control" type="number" id="edit-min-override"
+                                   name="players_min_override" min="1"
+                                   value="{{ game.players_min_override|default_if_none:'' }}">
+                        </div>
+                        <div class="col-sm-4 mb-3">
+                            <label class="form-label" for="edit-max-override">Max players override</label>
+                            <input class="form-control" type="number" id="edit-max-override"
+                                   name="players_max_override" min="1"
+                                   value="{{ game.players_max_override|default_if_none:'' }}">
+                        </div>
+                        <div class="col-sm-4 mb-3">
+                            <label class="form-label" for="edit-playtime-delta">Playtime delta (min)</label>
+                            <input class="form-control" type="number" id="edit-playtime-delta"
+                                   name="playtime_delta_override"
+                                   value="{{ game.playtime_delta_override|default_if_none:'' }}">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <p class="text-secondary small mb-3">
+                        Players, playtime, weight, rating and year come from the
+                        BGG sync; editions, expansion links and the game type are
+                        managed in the admin.
+                    </p>
+
+                    <button class="btn btn-primary" type="submit">Save &amp; back to game</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

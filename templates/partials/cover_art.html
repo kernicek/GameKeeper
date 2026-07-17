@@ -1,0 +1,23 @@
+{# One square-tile cover img (DESIGN §13), shared by the collection grid, #}
+{# the share grid and the edit page's crop preview. Zoom >= 100 crops #}
+{# square (object-fit: cover) toward the focal point; zoom < 100 = "fit": #}
+{# the whole art shows contain-style over the game's chosen letterbox #}
+{# colour (nothing when unset). The backdrop comes FIRST so the #}
+{# transformed main img (its scale() makes a stacking context) paints on #}
+{# top in DOM order. #}
+{#                                                                        #}
+{# Grid tiles pass use_preview=True: when a baked square preview exists #}
+{# (issue #104) it already has the crop applied, so we serve it as a #}
+{# plain img — no object-position/transform/backdrop, and one small file #}
+{# instead of the full cover. The editor crop preview and un-baked / #}
+{# remote-only covers fall through to the live CSS crop below. #}
+{% if use_preview and game.cover_preview_url %}
+<img src="{{ game.cover_preview_url }}" alt="{{ game.name }}" loading="lazy">
+{% elif game.cover_url %}
+{% if game.cover_fit and game.cover_fit_color %}
+<div class="cover-art-backdrop" style="background-color: {{ game.cover_fit_color }}"></div>
+{% endif %}
+<img {% if game.cover_fit %}class="cover-art-fit" {% endif %}src="{{ game.cover_url }}"
+     alt="{{ game.name }}" loading="lazy"
+     style="object-position: {{ game.cover_focus_x }}% {{ game.cover_focus_y }}%; transform: scale({{ game.cover_scale }}); transform-origin: {{ game.cover_focus_x }}% {{ game.cover_focus_y }}%">
+{% endif %}

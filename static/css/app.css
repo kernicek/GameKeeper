@@ -1,0 +1,364 @@
+/* GameKeeper skin on top of Bootswatch "Vapor" (DESIGN §13).
+   Vapor supplies the identity (synthwave purple/cyan on deep indigo); only
+   app-specific layout lives here. */
+
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+/* The sign-out button masquerades as a nav link. */
+.navbar form .nav-link {
+    text-decoration: none;
+}
+
+/* Cover-art grid: the primary browse view (DESIGN §13). Tiles show the BGG
+   cover with a name overlay; games the §8 sync hasn't covered yet fall back
+   to a text tile. */
+.cover-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+}
+.cover-grid .cover {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.cover-grid .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+/* Zoom-out "fit" tiles (§13, cover_zoom < 100): the whole art shows
+   contain-style over the game's chosen letterbox colour (cover_fit_color,
+   picked in the cover editor; no backdrop when unset).
+   Grid tiles + crop preview only — detail heroes stay plain. */
+.cover-grid .cover .cover-art-fit,
+.cover-crop-preview .cover-art-fit {
+    object-fit: contain;
+}
+.cover-grid .cover .cover-art-backdrop,
+.cover-crop-preview .cover-art-backdrop {
+    position: absolute;
+    inset: 0;
+}
+/* Hex paste field beside the colour swatch (PowerToys copies bare hex). */
+.cover-fit-color-hex {
+    width: 4rem;
+}
+/* Keep the colour picker a compact square, not a wide button. The ID beats
+   Bootstrap's `.was-validated .form-control-color:valid` width rule (a colour
+   input is always :valid). Chromium also won't shrink the control below its
+   internal swatch-wrapper padding, so zero that out and force the square. */
+#cover-fit-color.cover-fit-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    min-width: 1.5rem;
+    padding: 0;
+}
+.cover-fit-swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+.cover-fit-swatch::-webkit-color-swatch {
+    border: 0;
+    border-radius: 0.25rem;
+}
+.cover-fit-swatch::-moz-color-swatch {
+    border: 0;
+    border-radius: 0.25rem;
+}
+/* BGG lists this one as previously owned (§8) — flag the tile loudly. */
+/* Issue #8: status icons stack in the top-right corner as round badges. */
+.cover-grid .cover-flags {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    display: flex;
+    gap: 0.25rem;
+}
+.cover-grid .cover-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 0.8rem;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(10, 8, 25, 0.6);
+}
+.cover-grid .cover-flag-incoming {
+    background: var(--bs-info);
+}
+.cover-grid .cover-flag-prev-owned {
+    background: var(--bs-secondary);
+}
+.cover-grid .cover-flag-wishlist {
+    background: var(--bs-danger);
+}
+/* Issue #105: series-tile-only badges (all members share own/preordered). */
+.cover-grid .cover-flag-own {
+    background: var(--bs-success);
+}
+.cover-grid .cover-flag-preordered {
+    background: var(--bs-primary);
+}
+/* Issue #82: active copy marked keep_status=WILL_LEAVE (BGG's "for trade"). */
+.cover-grid .cover-flag-leaving {
+    background: var(--bs-warning);
+}
+/* Issue #21: marks the series' primary member on the series detail grid. */
+.cover-grid .cover-flag-primary {
+    background: var(--bs-warning);
+}
+/* Issue #46: expansion badge sits top-left, opposite the status badges,
+   so an expansion tile reads as such at a glance. Shares the .cover-flag
+   round shape; only its corner and colour differ. */
+.cover-grid .cover-flag-expansion {
+    position: absolute;
+    top: 0.4rem;
+    left: 0.4rem;
+    background: var(--bs-primary);
+}
+/* Issue #15: series member count sits bottom-right — captions are
+   left-aligned, so the badge stays clear of the name when it shows.
+   Belt and braces: on hover it also rises above the caption (below). */
+.cover-grid .cover-flag-count {
+    position: absolute;
+    bottom: 0.4rem;
+    right: 0.4rem;
+    background: var(--bs-primary);
+    transition: transform 0.15s ease;
+}
+
+/* Tiles are links to the detail page; keep the overlay text, not link blue. */
+.cover-grid a.cover {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+.cover-grid .cover-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 1.75rem 0.5rem 0.4rem;
+    background: linear-gradient(transparent, rgba(10, 8, 25, 0.92));
+    font-size: 0.8rem;
+    line-height: 1.2;
+}
+/* Issue #15: on hover-capable devices the name shows only on hover/focus;
+   touch devices keep the always-visible caption above as their fallback. */
+@media (hover: hover) {
+    .cover-grid .cover-label {
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+    .cover-grid .cover:hover .cover-label,
+    .cover-grid .cover:focus-visible .cover-label {
+        opacity: 1;
+    }
+    /* --count-rise is set per-tile by collection.html's delegated script
+       (caption height minus its gradient padding), so the badge clears
+       two-line captions too. Fallback covers a single line. */
+    .cover-grid .cover:hover .cover-flag-count,
+    .cover-grid .cover:focus-visible .cover-flag-count {
+        transform: translateY(calc(-1 * var(--count-rise, 1.4rem)));
+    }
+}
+
+/* Issue #21: series tiles expand in place — the overlay covers the tile
+   (its overflow: hidden clips it) with a header link to the series page
+   over a mini-grid of member covers. z-index because the scaled cover img
+   (transform: scale) forms a stacking context that would paint on top. */
+.cover-grid .cover-series {
+    cursor: pointer;
+}
+.series-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: none;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.4rem;
+    background: rgba(10, 8, 25, 0.92);
+    overflow-y: auto;
+}
+.cover-series.open .series-overlay {
+    display: flex;
+}
+.series-overlay-header {
+    color: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 0.1rem 0.15rem;
+}
+.series-overlay-header:hover {
+    color: var(--bs-info);
+}
+.series-overlay-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+    align-content: start;
+}
+/* Mini member tiles mirror the big square crop at small scale. */
+.series-overlay-cover {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-radius: 0.35rem;
+    overflow: hidden;
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.series-overlay-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.series-overlay-cover .cover-label {
+    padding: 0.6rem 0.25rem 0.15rem;
+    font-size: 0.6rem;
+}
+.series-overlay-cover .cover-flags {
+    top: 0.15rem;
+    right: 0.15rem;
+}
+.series-overlay-cover .cover-flag {
+    width: 1rem;
+    height: 1rem;
+    font-size: 0.55rem;
+}
+
+/* Curation table in-place editors (§11): keep the controls column-sized
+   instead of stretching to the cell. */
+.excitement-input {
+    width: 5.5rem;
+    margin-left: auto;
+}
+.keep-select {
+    width: 9.5rem;
+}
+
+/* Sleeves page in-place editors (§5): same column-sized treatment. */
+.pack-count-input {
+    width: 5.5rem;
+    margin-left: auto;
+}
+.sleeve-status-select {
+    width: 9rem;
+}
+.sleeve-product-select {
+    width: 13rem;
+}
+
+/* Issue #28: on phones the fixed control widths above are wider than the
+   viewport wants — cap them to fill the cell instead so the .table-responsive
+   wrappers have less to scroll. Desktop keeps the column-sized widths. */
+@media (max-width: 575.98px) {
+    .excitement-input,
+    .keep-select,
+    .pack-count-input,
+    .sleeve-status-select,
+    .sleeve-product-select {
+        width: 100%;
+    }
+}
+
+/* Detail-page hero (DESIGN §13): the cover sits beside the header inside a
+   fixed-height box (object-fit: contain — no cropping), so BGG originals of
+   any size and shape render tidily and consistently. */
+img.hero-cover {
+    width: 100%;
+    height: 360px;
+    object-fit: contain;
+    object-position: center top;
+    filter: drop-shadow(0 0.5rem 1.5rem rgba(0, 0, 0, 0.6));
+}
+.hero-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1 / 1;
+    padding: 1rem;
+    text-align: center;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Cover editor (DESIGN §13): click the full art to move the crop focal
+   point; the square preview mirrors a collection grid tile. */
+.cover-focus-frame {
+    position: relative;
+    cursor: crosshair;
+}
+.cover-focus-frame img {
+    width: 100%;
+    display: block;
+    border-radius: 0.35rem;
+}
+.cover-focus-marker {
+    position: absolute;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: -0.55rem 0 0 -0.55rem;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+    /* Draggable (issue #13): the marker grabs the pointer; clicks elsewhere
+       on the art still fall through to the img to set the focal point.
+       touch-action: none lets a touch-drag work without scrolling the page. */
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;
+}
+.cover-focus-marker:active {
+    cursor: grabbing;
+}
+/* Hand-entry focus/zoom boxes (issue #12) — narrow; the spinner arrows are
+   dropped so three digits ("300") fit without cropping (the slider and marker
+   drag already cover stepping). */
+.cover-num {
+    width: 3.25rem;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.cover-num::-webkit-outer-spin-button,
+.cover-num::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.cover-crop-preview {
+    position: relative; /* anchors the fit-mode blur underlay */
+    width: 7rem;
+    aspect-ratio: 1 / 1;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+.cover-crop-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Issue #93: the shortfall table's per-size row expands to a per-game
+   breakdown. */
+.shortfall-row-toggle {
+    cursor: pointer;
+}

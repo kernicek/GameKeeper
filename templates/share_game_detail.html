@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}{{ game.name }} | {{ group.name }}{% endblock %}
+
+{% block content %}
+{% comment %}
+DESIGN §3 viewer game detail (tier 4 anonymous and tiers 2+3 logged-in): the
+curated safe field set only — cover, title, BGG + crowdfunding/marketplace
+links, players, playtime, weight/rating, mechanics, expansions (owned vs
+unowned), documents. No copies table, no owners, no locations, no personal
+notes, no curation signals.
+{% endcomment %}
+<p class="mb-3">
+    <a class="small" href="{% url collection_url_name url_key %}">
+        &larr; {% if location %}{{ group.name }} — {{ location.name }}{% else %}{{ group.name }} — collection{% endif %}
+    </a>
+</p>
+
+<div class="row g-4">
+    <div class="col-md-4 col-lg-3">
+        {% if game.cover_url %}
+        <img class="hero-cover" src="{{ game.cover_url }}" alt="{{ game.name }}">
+        {% else %}
+        <div class="hero-placeholder">{{ game.name }}</div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-8 col-lg-9">
+        <h1 class="h2 mb-1">
+            {{ game.name }}
+            {% if game.year_published %}
+            <span class="text-secondary fs-5">{{ game.year_published }}</span>
+            {% endif %}
+        </h1>
+
+        <div class="mb-3">
+            {% if game.type == "expansion" %}
+            <span class="badge text-bg-warning">Expansion</span>
+            {% for base in expands %}
+            <a class="small ms-1" href="{% url detail_url_name url_key base.pk %}">
+                expands {{ base.name }}
+            </a>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <dl class="row mb-3">
+            {% if game.min_players or game.max_players %}
+            <dt class="col-sm-3">Players</dt>
+            <dd class="col-sm-9">
+                {{ game.min_players|default:"?" }}–{{ game.max_players|default:"?" }}
+            </dd>
+            {% endif %}
+            {% if game.min_playtime or game.max_playtime %}
+            <dt class="col-sm-3">Playtime</dt>
+            <dd class="col-sm-9">
+                {{ game.min_playtime|default:game.max_playtime }}{% if game.max_playtime and game.min_playtime != game.max_playtime %}–{{ game.max_playtime }}{% endif %} min
+            </dd>
+            {% endif %}
+            {% if game.weight %}
+            <dt class="col-sm-3">Weight</dt>
+            <dd class="col-sm-9">{{ game.weight }} / 5</dd>
+            {% endif %}
+            {% if game.bgg_rating %}
+            <dt class="col-sm-3">BGG rating</dt>
+            <dd class="col-sm-9">{{ game.bgg_rating }}{% if game.bgg_rank %} (rank <a href="https://boardgamegeek.com/browse/boardgame?sort=rank&amp;rankobjecttype=subtype&amp;rankobjectid=1&amp;rank={{ game.bgg_rank }}#{{ game.bgg_rank }}" target="_blank" rel="noopener">{{ game.bgg_rank }}</a>){% endif %}</dd>
+            {% endif %}
+            {% if game.primary_bgg_link %}
+            <dt class="col-sm-3">BGG</dt>
+            <dd class="col-sm-9">
+                <a href="{{ game.primary_bgg_link.url }}">boardgamegeek.com/boardgame/{{ game.primary_bgg_link.bgg_id }}</a>
+            </dd>
+            {% endif %}
+            {% if external_links %}
+            <dt class="col-sm-3">Links</dt>
+            <dd class="col-sm-9">
+                <ul class="list-unstyled mb-0">
+                    {% for link in external_links %}
+                    <li><a href="{{ link.resolved_url }}">{{ link }}</a></li>
+                    {% endfor %}
+                </ul>
+            </dd>
+            {% endif %}
+        </dl>
+
+        {# Mechanics are in the §3 safe set; themes are the owner's own #}
+        {# vocabulary and stay private. Empty until BGG's sync_bgg reports #}
+        {# a mechanic for this game. #}
+        {% if mechanics %}
+        <div class="mb-2">
+            {% for tag in mechanics %}
+            <span class="badge text-bg-primary">{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if expansion_rows %}
+        <div class="mt-4">
+            <h2 class="h6 text-secondary">Expansions</h2>
+            <ul class="list-unstyled mb-0">
+                {% for row in expansion_rows %}
+                <li>
+                    {% if row.owned %}
+                    <a href="{% url detail_url_name url_key row.game.pk %}">{{ row.game.short_name }}</a>
+                    {% else %}
+                    <span class="fst-italic text-secondary">{{ row.game.short_name }}</span>
+                    <span class="text-secondary small">not owned</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if documents %}
+        <div class="mt-4">
+            <h2 class="h6 text-secondary">Documents</h2>
+            <ul class="list-unstyled mb-0">
+                {% for document in documents %}
+                <li>
+                    <a href="{{ document.display_url }}">{{ document }}</a>
+                    <span class="text-secondary small">{{ document.get_doc_type_display }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

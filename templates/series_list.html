@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Series | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Series</h1>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'series_add' %}">New series</a>
+</div>
+
+{% if series_rows %}
+<div class="cover-grid">
+    {% for series in series_rows %}
+    <a class="cover" title="{{ series.name }}" href="{% url 'series_detail' series.pk %}">
+        {% include "partials/cover_art.html" with game=series.cover_source use_preview=True %}
+        <span class="cover-label">{{ series.name }}</span>
+        <span class="cover-flag cover-flag-count"
+              title="{{ series.member_count }} game{{ series.member_count|pluralize }} in series">{{ series.member_count }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">No series yet.</div>
+{% endif %}
+{% endblock %}

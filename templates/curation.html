@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Curation | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Cull candidates</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'archived_copies' %}">Archived copies</a>
+</div>
+
+{# Cull-candidates view (DESIGN §11): copies sorted by cull priority — #}
+{# lowest excitement first, filled-in "why it might leave" beats blank. #}
+<form class="card mb-4" id="cull-filters"
+      hx-get="{% url 'curation' %}" hx-target="#cull-results"
+      hx-trigger="input delay:300ms" hx-push-url="true">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-keep">Keep status</label>
+                <select class="form-select" id="f-keep" name="keep">
+                    <option value="">any</option>
+                    {% for value, label in keep_status_choices %}
+                    <option value="{{ value }}"
+                            {% if value == filters.keep %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="show_immune"
+                           id="f-immune" value="1"
+                           {% if filters.show_immune %}checked{% endif %}>
+                    <label class="form-check-label" for="f-immune">Include immune</label>
+                </div>
+            </div>
+            {# Reset rides alongside the filter controls (matches the chooser card). #}
+            <div class="col-auto ms-auto">
+                <a class="small" href="{% url 'curation' %}">Reset filters</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div id="cull-results">
+    {% include "partials/cull_table.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% if tiles %}
+<div class="cover-grid">
+    {% for tile in tiles %}
+    {% if tile.series %}
+    {# Issue #21: one tile per series. Not an <a> (the overlay holds anchors, #}
+    {# and nested anchors are invalid) — the series-tile script toggles .open. #}
+    {# Cover = custom series art, else the primary member's full focus/zoom #}
+    {# treatment (both via cover_source). data-series-url is empty on shared #}
+    {# grids (issue #120: no series page there), so the tile only expands. #}
+    <div class="cover cover-series" role="button" tabindex="0" data-series-tile
+         data-series-url="{{ tile.series_url|default:'' }}"
+         title="{{ tile.series.name }}">
+        {% include "partials/cover_art.html" with game=tile.cover_source use_preview=True %}
+        {% if owner_view %}
+        <span class="cover-flags">
+            {% if tile.is_incoming %}
+            <span class="cover-flag cover-flag-incoming" title="Incoming preorder">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <span class="visually-hidden">Incoming preorder</span>
+            </span>
+            {% endif %}
+            {% if tile.is_leaving %}
+            <span class="cover-flag cover-flag-leaving" title="Leaving / for trade">
+                <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                <span class="visually-hidden">Leaving / for trade</span>
+            </span>
+            {% endif %}
+            {# Issue #105: only when EVERY member shares one status. #}
+            {% if tile.shared_status == "own" %}
+            <span class="cover-flag cover-flag-own" title="Owned">
+                <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Owned</span>
+            </span>
+            {% elif tile.shared_status == "preordered" %}
+            <span class="cover-flag cover-flag-preordered" title="Preordered on BGG">
+                <i class="bi bi-bag-check-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Preordered on BGG</span>
+            </span>
+            {% elif tile.shared_status == "prev_owned" %}
+            <span class="cover-flag cover-flag-prev-owned" title="Previously owned">
+                <i class="bi bi-archive" aria-hidden="true"></i>
+                <span class="visually-hidden">Previously owned</span>
+            </span>
+            {% elif tile.shared_status == "wishlist" %}
+            <span class="cover-flag cover-flag-wishlist" title="Wishlist on BGG">
+                <i class="bi bi-heart" aria-hidden="true"></i>
+                <span class="visually-hidden">Wishlist on BGG</span>
+            </span>
+            {% endif %}
+        </span>
+        {% endif %}
+        <span class="cover-label">{{ tile.series.name }}</span>
+        {# Issue #15: member count as a corner badge — readable without hover. #}
+        <span class="cover-flag cover-flag-count"
+              title="{{ tile.members|length }} game{{ tile.members|length|pluralize }} in series">{{ tile.members|length }}</span>
+        <div class="series-overlay">
+            {% if tile.series_url %}
+            <a class="series-overlay-header" href="{{ tile.series_url }}">
+                {{ tile.series.name }} <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </a>
+            {% else %}
+            <span class="series-overlay-header">{{ tile.series.name }}</span>
+            {% endif %}
+            <div class="series-overlay-grid">
+                {% for member in tile.members %}
+                <a class="series-overlay-cover" title="{{ member.name }}"
+                   href="{{ member.detail_url }}">
+                    {% include "partials/cover_art.html" with game=member use_preview=True %}
+                    {% if owner_view %}
+                    {# prev_owned/wishlist/incoming are member-specific, so #}
+                    {# they mark the mini-tiles, not the collapsed tile. #}
+                    <span class="cover-flags">
+                        {% if member.is_incoming %}
+                        <span class="cover-flag cover-flag-incoming" title="Incoming preorder">
+                            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                            <span class="visually-hidden">Incoming preorder</span>
+                        </span>
+                        {% endif %}
+                        {% if member.bgg_collection_status == "prev_owned" %}
+                        <span class="cover-flag cover-flag-prev-owned" title="Previously owned">
+                            <i class="bi bi-archive" aria-hidden="true"></i>
+                            <span class="visually-hidden">Previously owned</span>
+                        </span>
+                        {% elif member.bgg_collection_status == "wishlist" %}
+                        <span class="cover-flag cover-flag-wishlist" title="Wishlist on BGG">
+                            <i class="bi bi-heart" aria-hidden="true"></i>
+                            <span class="visually-hidden">Wishlist on BGG</span>
+                        </span>
+                        {% endif %}
+                        {% if member.is_leaving %}
+                        <span class="cover-flag cover-flag-leaving" title="Leaving / for trade">
+                            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                            <span class="visually-hidden">Leaving / for trade</span>
+                        </span>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                    <span class="cover-label">{{ member.name }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    {% with game=tile.game %}
+    <a class="cover" title="{{ game.name }}" href="{{ tile.detail_url }}">
+        {# cover_url = local file first (sharp, BGG-independent), then the #}
+        {# remote full image over the blurry ~200px thumbnail. #}
+        {% include "partials/cover_art.html" with use_preview=True %}
+        {% if owner_view %}
+        {# Issue #46: puzzle badge marks expansion tiles (top-left, opposite #}
+        {# the #8 status badges) so they stand out from base games. #}
+        {% if game.type == "expansion" %}
+        <span class="cover-flag cover-flag-expansion" title="Expansion">
+            <i class="bi bi-puzzle-fill" aria-hidden="true"></i>
+            <span class="visually-hidden">Expansion</span>
+        </span>
+        {% endif %}
+        {# Issue #8: status icons (bootstrap-icons webfont), title = tooltip. #}
+        <span class="cover-flags">
+            {% if game.is_incoming %}
+            <span class="cover-flag cover-flag-incoming" title="Incoming preorder">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <span class="visually-hidden">Incoming preorder</span>
+            </span>
+            {% endif %}
+            {% if game.bgg_collection_status == "prev_owned" %}
+            <span class="cover-flag cover-flag-prev-owned" title="Previously owned">
+                <i class="bi bi-archive" aria-hidden="true"></i>
+                <span class="visually-hidden">Previously owned</span>
+            </span>
+            {% elif game.bgg_collection_status == "wishlist" %}
+            <span class="cover-flag cover-flag-wishlist" title="Wishlist on BGG">
+                <i class="bi bi-heart" aria-hidden="true"></i>
+                <span class="visually-hidden">Wishlist on BGG</span>
+            </span>
+            {% endif %}
+            {% if game.is_leaving %}
+            <span class="cover-flag cover-flag-leaving" title="Leaving / for trade">
+                <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                <span class="visually-hidden">Leaving / for trade</span>
+            </span>
+            {% endif %}
+        </span>
+        {% endif %}
+        <span class="cover-label">{{ game.name }}</span>
+    </a>
+    {% endwith %}
+    {% endif %}
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">No games match these filters.</div>
+{% endif %}

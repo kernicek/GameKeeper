@@ -1,0 +1,66 @@
+<p class="text-secondary mb-3">
+    Showing {{ purchase_count }} of {{ total_count }} purchase{{ total_count|pluralize }}
+</p>
+
+{% if rows %}
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Purchase</th>
+                    <th>Platform</th>
+                    <th>Status</th>
+                    <th>Pledge manager</th>
+                    <th>Waves</th>
+                    <th class="text-end">Items</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        <a href="{% url 'purchase_detail' row.purchase.pk %}">
+                            {{ row.purchase.name }}
+                        </a>
+                    </td>
+                    <td>{{ row.purchase.get_platform_display }}</td>
+                    <td>
+                        <span class="badge {% if row.purchase.status == 'committed' %}text-bg-success{% elif row.purchase.status == 'watching' %}text-bg-info{% elif row.purchase.status == 'refunded' %}text-bg-warning{% elif row.purchase.status == 'never_delivered' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">
+                            {{ row.purchase.get_status_display }}
+                        </span>
+                        {% if row.fulfilled %}
+                            <span class="badge text-bg-secondary">fulfilled</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.purchase.pledge_manager_status %}
+                            {{ row.purchase.get_pledge_manager_status_display }}
+                            {% if row.purchase.pledge_manager_close_date and not row.hide_close_date %}
+                                <span class="text-secondary small">
+                                    closes {{ row.purchase.pledge_manager_close_date|date:"j M Y" }}
+                                </span>
+                            {% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if row.hide_waves %}—
+                        {% elif row.waves_total %}
+                            {{ row.waves_arrived }}/{{ row.waves_total }} arrived
+                            {% if row.next_eta %}
+                                <span class="text-secondary small">next ETA {{ row.next_eta|date:"M Y" }}</span>
+                            {% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-end">{{ row.product_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">No purchases match these filters.</div>
+{% endif %}

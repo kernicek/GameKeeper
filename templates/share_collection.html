@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{% if location %}{{ group.name }} — {{ location.name }}{% else %}{{ group.name }} — shared collection{% endif %}{% endblock %}
+
+{% block content %}
+{# DESIGN §3 read-only viewer projection (tier 4 anonymous /share/<token>/ #}
+{# and tiers 2+3 logged-in /g/<slug>/). Collection only, no preorders, no #}
+{# personal signals — just the covers and the group's name. #}
+{# Issue #123: location is set only for a per-location share link — never #}
+{# a list of the group's other locations, just the one this link is pinned to. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">{% if location %}{{ group.name }} — {{ location.name }}{% else %}{{ group.name }} — collection{% endif %}</h1>
+    <span class="text-secondary small">
+        shared read-only
+        {% if can_manage %}
+        · <a href="{% url 'group_settings' group.slug %}">sharing settings</a>
+        {% endif %}
+    </span>
+</div>
+
+{# Issue #120: the same GameChooser the owner gets, minus the owner-only axes #}
+{# (location, availability) — owner_view is False, so the chooser omits them. #}
+{% include "partials/chooser.html" %}
+
+<div id="chooser-results">
+    {% include "partials/game_results.html" %}
+</div>
+
+{% include "partials/series_tile_script.html" %}
+{% endblock %}

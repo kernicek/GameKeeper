@@ -1,0 +1,69 @@
+{# Swapped by the include-preorders toggle (htmx target #shortfall-table). #}
+{% if shortfall %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            <th>Card size</th>
+            <th class="text-end">To sleeve</th>
+            <th class="text-end">In stock</th>
+            <th class="text-end">Short</th>
+            <th class="text-end">Buy</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in shortfall %}
+        <tr{% if entry.games %} class="shortfall-row-toggle" data-bs-toggle="collapse" data-bs-target="#shortfall-games-{{ entry.card_size.pk }}" role="button" aria-expanded="false" aria-controls="shortfall-games-{{ entry.card_size.pk }}"{% endif %}>
+            <td>
+                {% if entry.games %}<i class="bi bi-chevron-down small text-secondary me-1" aria-hidden="true"></i>{% endif %}
+                {{ entry.card_size }}
+            </td>
+            <td class="text-end">{{ entry.to_sleeve }}</td>
+            <td class="text-end">{{ entry.in_inventory }}</td>
+            {# Covered sizes (the /sleeves/ page shows them) are not alarms. #}
+            <td class="text-end{% if entry.shortfall %} text-danger{% endif %}">{{ entry.shortfall }}</td>
+            <td class="text-end">
+                {% if entry.packs_to_buy %}
+                    <span class="badge text-bg-primary">{{ entry.packs_to_buy }} pack{{ entry.packs_to_buy|pluralize }}</span>
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        {% if entry.games %}
+        {# Issue #93: which games contribute to this size's to-sleeve count. #}
+        <tr class="collapse" id="shortfall-games-{{ entry.card_size.pk }}">
+            <td colspan="5" class="bg-body-tertiary p-0">
+                <ul class="list-unstyled small mb-0 px-3 py-2">
+                    {% for g in entry.games %}
+                    <li class="d-flex justify-content-between">
+                        <span>
+                            {% if g.game_pk %}<a href="{% url 'game_detail' g.game_pk %}">{{ g.label }}</a>
+                            {% else %}{{ g.label }}{% endif %}
+                        </span>
+                        <span>{{ g.to_sleeve }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary mb-0">
+    {% if show_covered %}
+    No to-sleeve cards{% if include_preorders %} (preorders included){% endif %} —
+    mark copies "to sleeve" in the worklist below and the math shows up here.
+    {% else %}
+    No shortfall — every to-sleeve card{% if include_preorders %} (preorders included){% endif %}
+    is covered by inventory.
+    {% endif %}
+</p>
+{% endif %}
+{% if card_limit and shortfall_total > card_limit %}
+<p class="text-secondary small pt-2 mb-0 border-top">
+    Showing {{ card_limit }} of {{ shortfall_total }} —
+    <a href="{% url 'sleeves' %}">view all</a>.
+</p>
+{% endif %}

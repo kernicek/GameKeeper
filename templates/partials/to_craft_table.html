@@ -1,0 +1,35 @@
+{% if to_craft %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            <th>Game</th>
+            <th>Acquired</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for copy in to_craft %}
+        <tr>
+            <td>
+                <a href="{% url 'game_detail' copy.edition.game.pk %}">{{ copy.edition.game.name }}</a>
+                {% if copy.edition.name %}
+                    <span class="text-secondary small">{{ copy.edition.name }}</span>
+                {% endif %}
+            </td>
+            <td>{{ copy.acquired_date|date:"M Y"|default:"—" }}</td>
+            <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-success"
+                        hx-post="{% url 'copy_mark_ready' copy.pk %}"
+                        hx-target="#to-craft-table" hx-swap="innerHTML">
+                    Mark as printed
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary p-3 mb-0">Nothing needs printing/prep.</p>
+{% endif %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}New purchase | GameKeeper{% endblock %}
+
+{% block content %}
+{# Purchase add page (issue #5): the campaign facts only — waves and #}
+{# products are filled in on the edit page this lands on (Wave 1 is #}
+{# auto-created, DESIGN §6). #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">New purchase</h1>
+    <a class="small" href="{% url 'purchases' %}">back to purchases</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">Campaign</div>
+            <div class="card-body">
+                <form method="post" action="{% url 'purchase_add' %}">
+                    {% csrf_token %}
+                    {% include "partials/purchase_form_fields.html" %}
+                    <button class="btn btn-primary" type="submit">Create &amp; add items</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,105 @@
+{# The campaign + pledge-manager form fields (issue #5), shared by the add #}
+{# and edit pages. Renders from `purchase_form` — a Django ModelForm bound #}
+{# to `purchase`, so typed values (and per-field errors) survive re-render #}
+{# on validation failure. #}
+{% load pledge_manager_links %}
+{% if purchase_form.non_field_errors %}
+<div class="alert alert-warning py-2">{{ purchase_form.non_field_errors.0 }}</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-sm-6 mb-3">
+        <label class="form-label" for="{{ purchase_form.name.id_for_label }}">Name</label>
+        {{ purchase_form.name }}
+        {% if purchase_form.name.errors %}
+        <div class="form-text text-danger">{{ purchase_form.name.errors.0 }}</div>
+        {% endif %}
+    </div>
+    <div class="col-sm-3 mb-3">
+        <label class="form-label" for="{{ purchase_form.platform.id_for_label }}">Platform</label>
+        {{ purchase_form.platform }}
+    </div>
+    <div class="col-sm-3 mb-3">
+        <label class="form-label" for="{{ purchase_form.status.id_for_label }}">Status</label>
+        {{ purchase_form.status }}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-sm-6 mb-3">
+        <label class="form-label" for="{{ purchase_form.campaign_url.id_for_label }}">Campaign URL</label>
+        {{ purchase_form.campaign_url }}
+        {% if purchase_form.campaign_url.errors %}
+        <div class="form-text text-danger">{{ purchase_form.campaign_url.errors.0 }}</div>
+        {% endif %}
+    </div>
+    <div class="col-sm-3 mb-3">
+        <label class="form-label" for="{{ purchase_form.campaign_end_date.id_for_label }}">Campaign ends</label>
+        {{ purchase_form.campaign_end_date }}
+        <div class="form-text">Drives the ending-soon reminders while watching.</div>
+    </div>
+    <div class="col-sm-3 mb-3">
+        <label class="form-label" for="{{ purchase_form.ordered_date.id_for_label }}">Ordered</label>
+        {{ purchase_form.ordered_date }}
+    </div>
+</div>
+
+<label class="form-label d-block">Pledge manager</label>
+<div class="row">
+    <div class="col-sm-3 mb-3">
+        <label class="form-label small text-secondary" for="{{ purchase_form.pledge_manager.id_for_label }}">Manager</label>
+        {{ purchase_form.pledge_manager }}
+        <div id="pledge-manager-default-note" class="form-text d-none"></div>
+    </div>
+    <div class="col-sm-4 mb-3">
+        <label class="form-label small text-secondary" for="{{ purchase_form.pledge_manager_url.id_for_label }}">URL</label>
+        {{ purchase_form.pledge_manager_url }}
+        {% if purchase_form.pledge_manager_url.errors %}
+        <div class="form-text text-danger">{{ purchase_form.pledge_manager_url.errors.0 }}</div>
+        {% endif %}
+    </div>
+    <div class="col-sm-3 mb-3">
+        <label class="form-label small text-secondary" for="{{ purchase_form.pledge_manager_status.id_for_label }}">Status</label>
+        {{ purchase_form.pledge_manager_status }}
+    </div>
+    <div class="col-sm-2 mb-3">
+        <label class="form-label small text-secondary" for="{{ purchase_form.pledge_manager_close_date.id_for_label }}">Closes</label>
+        {{ purchase_form.pledge_manager_close_date }}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-sm-2 mb-3">
+        <label class="form-label" for="{{ purchase_form.excitement.id_for_label }}">Excitement</label>
+        {{ purchase_form.excitement }}
+        {% if purchase_form.excitement.errors %}
+        <div class="form-text text-danger">{{ purchase_form.excitement.errors.0 }}</div>
+        {% endif %}
+    </div>
+    <div class="col-sm-10 mb-3">
+        <label class="form-label" for="{{ purchase_form.excitement_note.id_for_label }}">Excitement note</label>
+        {{ purchase_form.excitement_note }}
+    </div>
+</div>
+
+<div class="mb-3">
+    <label class="form-label" for="{{ purchase_form.comments.id_for_label }}">Comments</label>
+    {{ purchase_form.comments }}
+</div>
+
+{# Issue #159: shows a note under the Manager dropdown when the selected PM #}
+{# has a shared default login link, without a server round-trip per pick. #}
+<script id="pledge-manager-default-urls" type="application/json">{% pledge_manager_default_urls_json %}</script>
+<script>
+    const pmDefaultUrls = JSON.parse(
+        document.getElementById("pledge-manager-default-urls").textContent);
+    const pmSelect = document.getElementById("{{ purchase_form.pledge_manager.id_for_label }}");
+    const pmNote = document.getElementById("pledge-manager-default-note");
+    const updatePmNote = () => {
+        const url = pmDefaultUrls[pmSelect.value];
+        pmNote.textContent = url ? `Has a default link: ${url}` : "";
+        pmNote.classList.toggle("d-none", !url);
+    };
+    pmSelect.addEventListener("change", updatePmNote);
+    updatePmNote();
+</script>

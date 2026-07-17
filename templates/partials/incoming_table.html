@@ -1,0 +1,36 @@
+{% load status_badges %}
+{% if incoming %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            <th>Purchase</th>
+            <th>Status</th>
+            <th>ETA</th>
+            <th class="text-end">Delay</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for wave in incoming %}
+        <tr>
+            <td>
+                <a href="{% url 'purchase_detail' wave.purchase.pk %}">{{ wave.purchase.name }}</a>
+                {% if wave.purchase.waves.count > 1 %}
+                    <span class="text-secondary small">wave {{ wave.number }}</span>
+                {% endif %}
+            </td>
+            <td><span class="badge {{ wave.status|wave_status_class }}">{{ wave.get_status_display }}</span></td>
+            <td>{{ wave.expected_arrival|default:wave.original_eta|date:"M Y"|default:"—" }}</td>
+            <td class="text-end">
+                {% if wave.delay_days and wave.delay_days > 0 %}
+                    <span class="text-warning">+{{ wave.delay_days }}d</span>
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary p-3 mb-0">Nothing on the way.</p>
+{% endif %}

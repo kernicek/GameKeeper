@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Item {{ product.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Product edit page (issue #5): a wave line-item — kind, the Game/Edition #}
+{# it delivers, links and the provisional §6 contents fields. Conversion #}
+{# to a Copy happens from the purchase detail page once the wave arrives. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Item — {{ product.name }}</h1>
+    <a class="small" href="{% url 'purchase_edit' purchase.pk %}">back to {{ purchase.name }}</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                Wave {{ product.wave.number }} item
+                {% if product.copy_id %}
+                <span class="badge text-bg-success ms-1">in collection</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'product_edit' product.pk %}">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-sm-8 mb-3">
+                            <label class="form-label" for="pr-name">Name</label>
+                            <input class="form-control" type="text" id="pr-name"
+                                   name="name" value="{{ product.name }}"
+                                   maxlength="300" required>
+                        </div>
+                        <div class="col-sm-4 mb-3">
+                            <label class="form-label" for="pr-kind">Kind</label>
+                            <select class="form-select" id="pr-kind" name="kind">
+                                {% for value, label in kind_choices %}
+                                <option value="{{ value }}" {% if product.kind == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="pr-game">Game</label>
+                            <select class="form-select" id="pr-game" name="game">
+                                <option value="">— not a modelled game —</option>
+                                {% for game in games %}
+                                <option value="{{ game.pk }}" {% if product.game_id == game.pk %}selected{% endif %}>{{ game.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="pr-edition">Edition</label>
+                            <select class="form-select" id="pr-edition" name="edition">
+                                <option value="">—</option>
+                                {% for edition in editions %}
+                                <option value="{{ edition.pk }}" {% if product.edition_id == edition.pk %}selected{% endif %}>
+                                    {{ edition.name|default:"default edition" }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                Options follow the saved game — after changing
+                                the game, save first, then pick.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="pr-bgg-url">BGG URL</label>
+                            <input class="form-control" type="url" id="pr-bgg-url"
+                                   name="bgg_url" value="{{ product.bgg_url }}"
+                                   maxlength="500" placeholder="https://…">
+                            <div class="form-text">For items on BGG that aren't modelled as games (promos, accessories).</div>
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="pr-drive-url">Files URL</label>
+                            <input class="form-control" type="url" id="pr-drive-url"
+                                   name="drive_url" value="{{ product.drive_url }}"
+                                   maxlength="1000" placeholder="https://…">
+                        </div>
+                    </div>
+
+                    <label class="form-label d-block">Contents (provisional, pre-arrival)</label>
+                    <div class="row">
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="pr-cards">Contains cards</label>
+                            <select class="form-select form-select-sm" id="pr-cards" name="contains_cards">
+                                <option value="">—</option>
+                                {% for value, label in tristate_choices %}
+                                <option value="{{ value }}" {% if product.contains_cards == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="pr-sleeves">Needs sleeves</label>
+                            <select class="form-select form-select-sm" id="pr-sleeves" name="needs_sleeves">
+                                <option value="">—</option>
+                                {% for value, label in tristate_choices %}
+                                <option value="{{ value }}" {% if product.needs_sleeves == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="pr-minis">Miniatures</label>
+                            <input class="form-control form-control-sm" type="number"
+                                   id="pr-minis" name="miniatures_count" min="0"
+                                   value="{{ product.miniatures_count|default_if_none:'' }}">
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="pr-fits">Fits sleeved?</label>
+                            <input class="form-control form-control-sm" type="text"
+                                   id="pr-fits" name="fits_sleeved_note"
+                                   value="{{ product.fits_sleeved_note }}" maxlength="100">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="pr-insert">3D-insert plan</label>
+                        <input class="form-control" type="text" id="pr-insert"
+                               name="insert_3d_note" value="{{ product.insert_3d_note }}"
+                               maxlength="300"
+                               placeholder="moves to the copy on arrival">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="pr-notes">Notes</label>
+                        <textarea class="form-control" id="pr-notes" name="notes"
+                                  rows="3">{{ product.notes }}</textarea>
+                    </div>
+
+                    <p class="text-secondary small mb-3">
+                        Concrete sleeve counts per card size are managed in the
+                        admin for now; they feed the
+                        <a href="{% url 'sleeves' %}">sleeve shortfall</a>'s
+                        preorder toggle.
+                    </p>
+
+                    <button class="btn btn-primary" type="submit">Save &amp; back to purchase</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

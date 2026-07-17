@@ -1,0 +1,13 @@
+Hi {{ owner.username }},
+
+deadlines coming up in the next {{ window_days }} days:
+{% if closing %}
+Pledge managers closing soon — fill them out or lose the pledge:
+{% for purchase in closing %}  * {{ purchase.name }} — closes {{ purchase.pledge_manager_close_date|date:"j M Y" }}{% if purchase.pledge_manager %} ({{ purchase.pledge_manager }}){% endif %}{% if purchase.pledge_manager_url %}
+    {{ purchase.pledge_manager_url }}{% endif %}
+{% endfor %}{% endif %}{% if ending %}
+Watched campaigns ending soon — back them or let them go:
+{% for purchase in ending %}  * {{ purchase.name }} — ends {{ purchase.campaign_end_date|date:"j M Y" }}{% if purchase.campaign_url %}
+    {{ purchase.campaign_url }}{% endif %}
+{% endfor %}{% endif %}
+— GameKeeper

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Import from BGG — done | GameKeeper{% endblock %}
+
+{% block content %}
+{# Bulk collection import, step 3 of 3 (issue #81): per-item results. #}
+{# Rendered, not redirected — the report is ephemeral (like the per-game #}
+{# sync partial), and failures list the exact BGG ids to retry. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Import from BGG — done</h1>
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'bgg_import' %}">import more</a></li>
+            <li><a class="dropdown-item" href="{% url 'collection' %}">back to collection</a></li>
+        </ul>
+    </div>
+</div>
+
+{% if report.created %}
+<h2 class="h5">Created ({{ report.created|length }})</h2>
+<ul>
+    {% for item in report.created %}
+    <li>
+        <a href="{% url 'game_detail' item.game.pk %}">{{ item.game.name }}</a>
+        <span class="text-muted">— {{ item.action_label }}</span>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if report.skipped %}
+<h2 class="h5 mt-4">Skipped — already in the app ({{ report.skipped|length }})</h2>
+<ul>
+    {% for item in report.skipped %}
+    <li>
+        <a href="{% url 'game_detail' item.existing.pk %}">{{ item.existing.name }}</a>
+        <span class="text-muted">— BGG #{{ item.bgg_id }}</span>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if report.failed %}
+<h2 class="h5 mt-4">Failed ({{ report.failed|length }})</h2>
+<ul>
+    {% for item in report.failed %}
+    <li>BGG #{{ item.bgg_id }} <span class="text-muted">— {{ item.error }}</span></li>
+    {% endfor %}
+</ul>
+<div class="form-text">
+    Failed games were not created. Re-running the import retries them and
+    skips everything that already landed.
+</div>
+{% endif %}
+
+{% if not report.items %}
+<div class="alert alert-info" role="alert">Nothing was imported.</div>
+{% endif %}
+{% endblock %}

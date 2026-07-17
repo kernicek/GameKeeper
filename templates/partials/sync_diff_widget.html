@@ -1,0 +1,58 @@
+{% load status_badges %}
+{# Shared by the §11 dashboard card (capped) and the full-list page (issue #83). #}
+{# full_scope=True on the full page: no cap, no header link/hint, and Dismiss #}
+{# posts with ?full=1 so the re-render stays uncapped. #}
+<div class="card-header d-flex align-items-center justify-content-between">
+    <span>
+        {% if full_scope %}BGG sync diffs{% else %}<a href="{% url 'dashboard_sync_diffs' %}">BGG sync diffs</a>{% endif %}
+        <span class="badge text-bg-info ms-1">{{ sync_diffs_total }}</span>
+    </span>
+</div>
+<div class="card-body p-0">
+    {% if sync_diffs %}
+    <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+        <thead>
+            <tr><th>Game</th><th>Diff</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for diff in sync_diffs %}
+            <tr>
+                <td>
+                    {% if diff.game %}
+                    <a href="{% url 'game_detail' diff.game.pk %}">{{ diff.game.name }}</a>
+                    {% else %}
+                    {{ diff.bgg_name }}
+                    {% endif %}
+                    <a class="text-secondary small"
+                       href="https://boardgamegeek.com/boardgame/{{ diff.bgg_id }}">BGG {{ diff.bgg_id }}</a>
+                    {% if diff.note %}<div class="text-secondary small">{{ diff.note }}</div>{% endif %}
+                </td>
+                <td><span class="badge {{ diff.category|sync_diff_category_class }}">{{ diff.get_category_display }}</span></td>
+                {# §8: dismiss = per-user "not interested, never nag again". #}
+                <td class="text-end">
+                    {# Issue #168: pull BGG's status into the app, offered only where there's a Copy to mutate. #}
+                    {% if diff.category == "prev_owned_active" or diff.category == "archived_on_bgg" %}
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                            hx-post="{% url 'sync_diff_accept' diff.pk %}{% if full_scope %}?full=1{% endif %}"
+                            hx-target="#sync-diff-widget">Update to match BGG</button>
+                    {% endif %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            hx-post="{% url 'sync_diff_dismiss' diff.pk %}{% if full_scope %}?full=1{% endif %}"
+                            hx-target="#sync-diff-widget">Dismiss</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-secondary p-3 mb-0">No unreviewed sync diffs.</p>
+    {% endif %}
+    {% if not full_scope and sync_diffs_total > card_limit %}
+    <p class="text-secondary small px-3 py-2 mb-0 border-top">
+        Showing {{ card_limit }} of {{ sync_diffs_total }} —
+        <a href="{% url 'dashboard_sync_diffs' %}">view all</a>.
+    </p>
+    {% endif %}
+</div>

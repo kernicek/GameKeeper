@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Pledge plan item | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">{% if item %}Edit item{% else %}Add item{% endif %} — {{ purchase.name }}</h1>
+    <a class="small" href="{% url 'pledge_plan_detail' plan.pk %}">back to plan</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Item</div>
+            <div class="card-body">
+                <form method="post"
+                      action="{% if item %}{% url 'pledge_plan_item_edit' item.pk %}{% else %}{% url 'pledge_plan_item_add' plan.pk %}{% endif %}">
+                    {% csrf_token %}
+                    {% if item_form.non_field_errors %}
+                    <div class="alert alert-warning py-2">{{ item_form.non_field_errors.0 }}</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ item_form.name.id_for_label }}">Name</label>
+                        {{ item_form.name }}
+                        {% if item_form.name.errors %}
+                        <div class="form-text text-danger">{{ item_form.name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ item_form.category.id_for_label }}">Category</label>
+                            {{ item_form.category }}
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ item_form.want_priority.id_for_label }}">Want priority</label>
+                            {{ item_form.want_priority }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ item_form.price.id_for_label }}">Individual price (optional)</label>
+                        {{ item_form.price }}
+                        {% if item_form.price.errors %}
+                        <div class="form-text text-danger">{{ item_form.price.errors.0 }}</div>
+                        {% endif %}
+                        <div class="form-text">
+                            What this item costs bought separately — informational only, used to
+                            show a bundle's savings vs. its included items' individual prices.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ item_form.notes.id_for_label }}">Notes</label>
+                        {{ item_form.notes }}
+                    </div>
+                    <button class="btn btn-primary" type="submit">Save</button>
+                </form>
+                {% if item %}
+                <form class="mt-3" method="post"
+                      action="{% url 'pledge_plan_item_delete' item.pk %}"
+                      onsubmit="return confirm('Delete {{ item.name|escapejs }}?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete item</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

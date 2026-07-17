@@ -1,0 +1,31 @@
+{# Read-only plays list (issue #65, DESIGN §8). Expects `plays` — Play rows #}
+{# with their players prefetched. Pass show_game=True for the global feed to #}
+{# add a game column; omit it on a single game's detail card. GameKeeper #}
+{# never writes plays; these are BGG's (BG Stats auto-post). #}
+<div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
+    <tbody>
+        {% for play in plays %}
+        <tr>
+            <td class="ps-3 text-nowrap">
+                {{ play.play_date|date:"Y-m-d"|default:"—" }}
+                {% if play.quantity > 1 %}<span class="badge text-bg-secondary">&times;{{ play.quantity }}</span>{% endif %}
+                {% if play.incomplete %}<span class="badge text-bg-warning" title="Incomplete play">incomplete</span>{% endif %}
+            </td>
+            {% if show_game %}
+            <td><a href="{% url 'game_detail' play.game.pk %}">{{ play.game.name }}</a></td>
+            {% endif %}
+            <td class="text-secondary small text-nowrap">
+                {% if play.location %}{{ play.location }}{% endif %}
+                {% if play.length_minutes %}{% if play.location %} &middot; {% endif %}{{ play.length_minutes }} min{% endif %}
+            </td>
+            <td>
+                {% for player in play.players.all %}<span class="text-nowrap{% if player.won %} fw-bold{% endif %}">{% if player.won %}&#127942; {% endif %}{{ player.name|default:player.username|default:"?" }}{% if player.score %} <span class="text-secondary fw-normal">({{ player.score }})</span>{% endif %}</span>{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-secondary small fst-italic">no player detail</span>{% endfor %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td class="ps-3 text-secondary" colspan="4">No plays recorded on BGG.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>

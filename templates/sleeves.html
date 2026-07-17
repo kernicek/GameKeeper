@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Sleeves | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Sleeves</h1>
+    <a class="small" href="{% url 'sleeves' %}">Reset filters</a>
+</div>
+
+<div class="row g-4 mb-4">
+    {# Full §5 shortfall math — covered sizes stay visible here (all=1), #}
+    {# unlike the dashboard widget that only nags about actual shortfalls. #}
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span>Shortfall</span>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="preorder-toggle"
+                           name="preorders" {% if include_preorders %}checked{% endif %}
+                           hx-get="{% url 'shortfall_partial' %}"
+                           hx-vals='{"all": "1"}'
+                           hx-target="#shortfall-table" hx-swap="innerHTML">
+                    <label class="form-check-label small" for="preorder-toggle">
+                        include preorders
+                    </label>
+                </div>
+            </div>
+            <div class="card-body" id="shortfall-table">
+                {% include "partials/shortfall_table.html" %}
+            </div>
+        </div>
+    </div>
+
+    {# Pack inventory (DESIGN §5): stock per product, edited in place. #}
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header">Inventory</div>
+            <div class="card-body p-0" id="inventory-results">
+                {% include "partials/sleeve_inventory_table.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 class="h5 mb-3">Sleeving worklist</h2>
+
+{# Per-copy, per-size sleeved state (DESIGN §5) — what feeds the shortfall. #}
+<form class="card mb-4" id="status-filters"
+      hx-get="{% url 'sleeves' %}" hx-target="#status-results"
+      hx-trigger="input delay:300ms" hx-push-url="true">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            {# Named show, not status — it must not collide with the row #}
+            {# selects' status edit param when hx-include'd into POSTs. #}
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-status">Status</label>
+                <select class="form-select" id="f-status" name="show">
+                    <option value="">any</option>
+                    {% for value, label in sleeve_status_choices %}
+                    <option value="{{ value }}"
+                            {% if value == sleeve_filters.status %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-size">Card size</label>
+                <select class="form-select" id="f-size" name="size">
+                    <option value="">any</option>
+                    {% for size in sleeve_sizes %}
+                    <option value="{{ size.pk }}"
+                            {% if size.pk == sleeve_filters.size %}selected{% endif %}>
+                        {{ size }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div id="status-results">
+    {% include "partials/sleeve_status_table.html" %}
+</div>
+{% endblock %}

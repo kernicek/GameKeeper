@@ -1,0 +1,94 @@
+{% comment %}
+Edition sleeve-requirement editor (issue #129, DESIGN §5). The whole
+#requirement-editor div is swapped (hx-swap=outerHTML) after every add / count
+edit / delete, so the add-form resets itself on each write. CSRF rides on every
+htmx request via base.html's beforeRequest hook.
+{% endcomment %}
+<div id="requirement-editor">
+    {% if requirements %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle mb-3">
+        <thead>
+            <tr>
+                <th>Card size</th>
+                <th class="text-end" style="width: 9rem;">Cards</th>
+                <th class="text-end" style="width: 6rem;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for requirement in requirements %}
+            <tr>
+                <td>{{ requirement.card_size }}</td>
+                <td class="text-end">
+                    <input type="number" name="count"
+                           class="form-control form-control-sm text-end"
+                           value="{{ requirement.count }}"
+                           min="1" step="1" inputmode="numeric"
+                           aria-label="Cards of {{ requirement.card_size }}"
+                           hx-post="{% url 'requirement_edit' requirement.pk %}"
+                           hx-target="#requirement-editor" hx-swap="outerHTML">
+                </td>
+                <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            aria-label="Remove {{ requirement.card_size }}"
+                            hx-post="{% url 'requirement_delete' requirement.pk %}"
+                            hx-target="#requirement-editor" hx-swap="outerHTML">
+                        Remove
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-secondary mb-3">No sleeve requirements yet.</p>
+    {% endif %}
+
+    <form hx-post="{% url 'requirement_add' edition.pk %}"
+          hx-target="#requirement-editor" hx-swap="outerHTML"
+          class="border-top pt-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-5">
+                <label class="form-label small mb-1" for="req-card-size">Card size</label>
+                <select class="form-select form-select-sm" id="req-card-size" name="card_size">
+                    {% for size in card_sizes %}
+                    <option value="{{ size.pk }}">{{ size }}</option>
+                    {% endfor %}
+                    <option value="new">＋ New size…</option>
+                </select>
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label small mb-1" for="req-count">Cards</label>
+                <input type="number" class="form-control form-control-sm" id="req-count"
+                       name="count" min="1" step="1" inputmode="numeric"
+                       placeholder="e.g. 195" required>
+            </div>
+            <div class="col-sm-4">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Add requirement</button>
+            </div>
+        </div>
+        <div class="row g-2 mt-1">
+            <div class="col-12">
+                <div class="form-text mb-1">
+                    Choosing “＋ New size…” uses the width/height below (name optional).
+                </div>
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label small mb-1" for="req-width">Width (mm)</label>
+                <input type="number" class="form-control form-control-sm" id="req-width"
+                       name="width_mm" min="0" step="0.1" inputmode="decimal" placeholder="63">
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label small mb-1" for="req-height">Height (mm)</label>
+                <input type="number" class="form-control form-control-sm" id="req-height"
+                       name="height_mm" min="0" step="0.1" inputmode="decimal" placeholder="88">
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label small mb-1" for="req-name">Name (optional)</label>
+                <input type="text" class="form-control form-control-sm" id="req-name"
+                       name="size_name" placeholder="e.g. Standard">
+            </div>
+        </div>
+    </form>
+</div>

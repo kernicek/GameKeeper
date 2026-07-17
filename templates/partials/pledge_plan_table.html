@@ -1,0 +1,144 @@
+{# Swapped whole by the bundle-item toggle checkboxes (htmx target #pledge-plan-table). #}
+{% if items %}
+{% if showing_shortlisted_only %}
+<p class="small mb-2">
+    Showing {{ bundles|length }} shortlisted of {{ all_bundles_count }} bundles —
+    <a href="?view=all">show all</a>.
+</p>
+{% elif shortlisted_count %}
+<p class="small mb-2">
+    Showing all {{ all_bundles_count }} bundles ({{ shortlisted_count }} shortlisted) —
+    <a href="{% url 'pledge_plan_detail' plan.pk %}">show shortlisted only</a>.
+</p>
+{% elif all_bundles_count %}
+<p class="small mb-2 text-secondary">
+    Star a bundle below to narrow this table down to your shortlist.
+</p>
+{% endif %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            <th>Item</th>
+            <th>Category</th>
+            <th>Priority</th>
+            <th class="text-end">Individual price</th>
+            {% for bundle in bundles %}
+            <th class="text-center">
+                <button type="button" class="btn btn-sm btn-link p-0 align-baseline"
+                        aria-label="{% if bundle.is_shortlisted %}Remove {{ bundle.name }} from shortlist{% else %}Add {{ bundle.name }} to shortlist{% endif %}"
+                        hx-post="{% url 'pledge_plan_bundle_shortlist_toggle' bundle.pk %}?view={{ view_mode }}"
+                        hx-target="#pledge-plan-table" hx-swap="innerHTML">
+                    {% if bundle.is_shortlisted %}
+                    <i class="bi bi-star-fill text-warning"></i>
+                    {% else %}
+                    <i class="bi bi-star"></i>
+                    {% endif %}
+                </button>
+                <a href="{% url 'pledge_plan_bundle_edit' bundle.pk %}">{{ bundle.name }}</a>
+            </th>
+            {% endfor %}
+            <th class="text-end"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.name }}</td>
+            <td>{{ item.get_category_display }}</td>
+            <td>{% if item.want_priority %}{{ item.get_want_priority_display }}{% else %}—{% endif %}</td>
+            <td class="text-end">
+                {% if item.price is not None %}{{ item.price|floatformat:"-2" }} {{ plan.currency }}{% else %}—{% endif %}
+            </td>
+            {% for bundle in bundles %}
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input" aria-label="Include {{ item.name }} in {{ bundle.name }}"
+                       hx-post="{% url 'pledge_plan_bundle_item_toggle' bundle.pk item.pk %}?view={{ view_mode }}"
+                       hx-target="#pledge-plan-table" hx-swap="innerHTML"
+                       {% if item in bundle.items.all %}checked{% endif %}>
+            </td>
+            {% endfor %}
+            <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary py-0 px-1"
+                   href="{% url 'pledge_plan_item_edit' item.pk %}">Edit</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th colspan="4" class="text-secondary small fw-normal">Value (sum of included items)</th>
+            {% for bundle in bundles %}
+            <td class="text-center text-secondary small">
+                {% if bundle.value is not None %}{{ bundle.value|floatformat:"-2" }}{% else %}—{% endif %}
+            </td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        <tr>
+            <th colspan="4">Pledge price</th>
+            {% for bundle in bundles %}
+            <td class="text-center">{{ bundle.price|floatformat:"-2" }}</td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        <tr>
+            <th colspan="4">Shipping</th>
+            {% for bundle in bundles %}
+            <td class="text-center">
+                {% if bundle.shipping_cost %}{{ bundle.shipping_cost|floatformat:"-2" }}{% else %}—{% endif %}
+            </td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        {% if plan.vat_rate %}
+        <tr>
+            <th colspan="4" class="text-secondary small fw-normal">VAT ({{ plan.vat_rate|floatformat:"-2" }}%)</th>
+            {% for bundle in bundles %}
+            <td class="text-center text-secondary small">{{ bundle.vat_amount|floatformat:"-2" }}</td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        {% endif %}
+        <tr>
+            <th colspan="4">Total</th>
+            {% for bundle in bundles %}
+            <td class="text-center">
+                <strong>{{ bundle.total_cost|floatformat:"-2" }} {{ plan.currency }}</strong>
+                {% if bundle.total_cost_czk %}
+                <div class="text-secondary small">{{ bundle.total_cost_czk|floatformat:0 }} CZK</div>
+                {% endif %}
+            </td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        <tr>
+            <th colspan="4" class="text-secondary small fw-normal">Savings vs. buying items separately</th>
+            {% for bundle in bundles %}
+            <td class="text-center text-secondary small">
+                {% if bundle.savings is not None %}{{ bundle.savings|floatformat:"-2" }}{% else %}—{% endif %}
+            </td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        {% for priority_value, priority_label in priority_choices %}
+        {% if priority_value in plan.priority_totals %}
+        <tr>
+            <th colspan="4" class="text-secondary small fw-normal">{{ priority_label }} covered</th>
+            {% for bundle in bundles %}
+            <td class="text-center text-secondary small">
+                {% for p, counts in bundle.priority_coverage.items %}
+                    {% if p == priority_value %}{{ counts.0 }}/{{ counts.1 }}{% endif %}
+                {% endfor %}
+            </td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </tfoot>
+</table>
+</div>
+{% else %}
+<p class="text-secondary mb-0">No items yet.</p>
+{% endif %}

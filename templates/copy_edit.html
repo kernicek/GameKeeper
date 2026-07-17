@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}My copy of {{ game.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{% comment %}
+Copy edit page (issue #136): one unified save for the physical copy
+(edition, acquired date, location, upgrades) and the §11 curation signals
+(excitement, keep-status, immune, why it might leave) — see forms.py's
+CopyForm. Sleeve statuses live on /sleeves/ (its own htmx auto-save
+section below); archiving is the curation Cull button.
+{% endcomment %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">My copy — {{ game.name }}</h1>
+    <a class="small" href="{% url 'game_detail' game.pk %}">back to game</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <form method="post" action="{% url 'copy_edit' copy.pk %}" id="copy-edit-form">
+            {% csrf_token %}
+            {% if return_purchase %}<input type="hidden" name="return_purchase" value="{{ return_purchase }}">{% endif %}
+            <div class="card mb-3">
+                <div class="card-header">Copy details</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ copy_form.edition.id_for_label }}">Edition</label>
+                            {{ copy_form.edition }}
+                            <div class="form-text">
+                                New editions are
+                                <a href="{% url 'edition_add' game.pk %}">added on the game page</a>.
+                            </div>
+                            {% if copy_form.edition.errors %}
+                            <div class="form-text text-danger">{{ copy_form.edition.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ copy_form.acquired_date.id_for_label }}">Acquired</label>
+                            {{ copy_form.acquired_date }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ copy_form.location.id_for_label }}">Location</label>
+                            {{ copy_form.location }}
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ copy_form.location_note.id_for_label }}">Location note</label>
+                            {{ copy_form.location_note }}
+                        </div>
+                    </div>
+
+                    <label class="form-label d-block">Upgrades &amp; customizations</label>
+                    <div class="row">
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="{{ copy_form.insert_3d.id_for_label }}">3D insert</label>
+                            {{ copy_form.insert_3d }}
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="{{ copy_form.card_dividers.id_for_label }}">Card dividers</label>
+                            {{ copy_form.card_dividers }}
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="{{ copy_form.accessories_3d.id_for_label }}">3D accessories</label>
+                            {{ copy_form.accessories_3d }}
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label small text-secondary" for="{{ copy_form.other_accessories.id_for_label }}">Other accessories</label>
+                            {{ copy_form.other_accessories }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ copy_form.upgrades_note.id_for_label }}">Upgrades note</label>
+                        {{ copy_form.upgrades_note }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ copy_form.notes.id_for_label }}">Notes</label>
+                        {{ copy_form.notes }}
+                    </div>
+
+                    {# Issue #56: the §11 cull signals are per-Copy and personal, so they #}
+                    {# live here where the rest of the copy is maintained — one save (#136). #}
+                    <div class="card mb-3">
+                        <div class="card-header">Curation</div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-3 mb-3">
+                                    <label class="form-label" for="{{ copy_form.excitement.id_for_label }}">Excitement (0–10)</label>
+                                    {{ copy_form.excitement }}
+                                    {% if copy_form.excitement.errors %}
+                                    <div class="form-text text-danger">{{ copy_form.excitement.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-sm-3 mb-3">
+                                    <label class="form-label" for="{{ copy_form.keep_status.id_for_label }}">Keep status</label>
+                                    {{ copy_form.keep_status }}
+                                </div>
+                                <div class="col-sm-6 mb-3">
+                                    <label class="form-label" for="{{ copy_form.why_might_leave.id_for_label }}">Why it might leave</label>
+                                    {{ copy_form.why_might_leave }}
+                                </div>
+                            </div>
+                            <div class="form-check">
+                                {{ copy_form.immune }}
+                                <label class="form-check-label" for="{{ copy_form.immune.id_for_label }}">Immune from culling</label>
+                            </div>
+                            <p class="text-secondary small mb-0 mt-2">
+                                The <a href="{% url 'curation' %}">curation table</a> edits
+                                these across the whole collection; culling lives there too.
+                            </p>
+                        </div>
+                    </div>
+
+                    {# Issue #17: per-copy sleeving — card sizes (edition requirements) with #}
+                    {# this copy's sleeve status + product, editable in place. The same #}
+                    {# shared table as the §5 worklist and the game-detail read-only card; #}
+                    {# each select posts to sleeve_status_edit (scope=copy) and swaps just #}
+                    {# these rows back into #copy-sleeves. No nested <form> here (it's #}
+                    {# htmx, not a submit), so it's safe inside the outer <form>. #}
+                    <div class="card">
+                        <div class="card-header">Sleeves</div>
+                        <div class="card-body p-0">
+                            {% if sleeve_rows %}
+                            <div id="copy-sleeves">
+                                {% include "partials/sleeve_table.html" with rows=sleeve_rows editable=True show_game=False hx_target="#copy-sleeves" scope="copy" status_choices=sleeve_status_choices %}
+                            </div>
+                            {% else %}
+                            <p class="text-secondary small mb-0 p-3">
+                                No sleeve requirements for this edition yet — add card sizes
+                                on the edition's edit page (or by the sleeves import).
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" type="submit">Save &amp; back to {% if return_purchase %}purchase{% else %}game{% endif %}</button>
+        </form>
+
+        {# Issue #43: lending/borrowing is a separate POST target from the #}
+        {# details form above, so it's its own <form> rather than nested. #}
+        <div class="card mt-3">
+            <div class="card-header">Loan</div>
+            <div class="card-body">
+                {% if copy.active_loan %}
+                <p class="mb-2">
+                    {% if copy.active_loan.direction == "lent_out" %}
+                    Lent to <strong>{{ copy.active_loan.counterparty }}</strong>
+                    {% else %}
+                    Borrowed from <strong>{{ copy.active_loan.counterparty }}</strong>
+                    {% endif %}
+                    {% if copy.active_loan.since %}since {{ copy.active_loan.since }}{% endif %}
+                    {% if copy.active_loan.expected_return_date %}
+                    &middot; expected back {{ copy.active_loan.expected_return_date }}
+                    {% endif %}
+                </p>
+                <form method="post" action="{% url 'copy_loan_return' copy.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Mark returned</button>
+                </form>
+                {% elif not copy.is_borrowed_in %}
+                <form method="post" action="{% url 'copy_loan_out' copy.pk %}"
+                      class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <div class="col-sm-4">
+                        <label class="form-label small">Lend to</label>
+                        <input class="form-control form-control-sm" type="text"
+                               name="counterparty" placeholder="Name or username" required>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small">Since</label>
+                        <input class="form-control form-control-sm" type="date" name="since">
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small">Expected back</label>
+                        <input class="form-control form-control-sm" type="date"
+                               name="expected_return_date">
+                    </div>
+                    <div class="col-sm-2">
+                        <button class="btn btn-sm btn-outline-primary w-100" type="submit">Lend out</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if game.type == 'expansion' %}
+<div class="modal fade" id="expansion-location-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Set a location on this expansion?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Expansions usually travel with their base game — set a location only if this one is stored separately.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-expansion-location">Set anyway</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Expansion-location warning (issue #77): non-blocking — the save is
+    // always allowed either way, so unlike the duplicate-copy modal there is
+    // no server-side confirm field to ride along, just a client-side gate.
+    const copyEditForm = document.getElementById("copy-edit-form");
+    const locationSelect = document.getElementById("{{ copy_form.location.id_for_label }}");
+    const expansionLocationModal = new bootstrap.Modal(
+        document.getElementById("expansion-location-modal"));
+    const initialLocation = locationSelect.value;
+    let expansionLocationConfirmed = false;
+    copyEditForm.addEventListener("submit", (event) => {
+        if (locationSelect.value && locationSelect.value !== initialLocation
+                && !expansionLocationConfirmed) {
+            event.preventDefault();
+            expansionLocationModal.show();
+        }
+    });
+    document.getElementById("confirm-expansion-location").addEventListener("click", () => {
+        expansionLocationConfirmed = true;
+        expansionLocationModal.hide();
+        copyEditForm.requestSubmit();
+    });
+</script>
+{% endif %}
+{% endblock %}

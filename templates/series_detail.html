@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% load admin_links %}
+
+{% block title %}{{ series.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Series detail (DESIGN §4, issue #21): the game page's structure fed a #}
+{# union over members. Stats come from the primary member; Copies and #}
+{# Purchases pool across members (each row names its game); plays sum with #}
+{# a per-member breakdown. Nothing per-member is merged — display only. #}
+<div class="row g-4 mb-4">
+    <div class="col-md-4 col-lg-3">
+        {% with cover=series.cover_source %}
+        {% if cover.cover_url %}
+        <img class="hero-cover" src="{{ cover.cover_url }}" alt="{{ series.name }}">
+        {% else %}
+        <div class="hero-placeholder">{{ series.name }}</div>
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="col-md-8 col-lg-9">
+        <h1 class="h2 mb-1">
+            {{ series.name }}
+            <a class="btn btn-sm btn-outline-secondary align-middle ms-2"
+               href="{% url 'series_edit' series.pk %}">Edit</a>
+            {% admin_edit_link series %}
+        </h1>
+        <p class="text-secondary mb-3">
+            Series of {{ members|length }} interchangeable game{{ members|length|pluralize }}
+        </p>
+
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Primary game</dt>
+            <dd class="col-sm-9">
+                <a href="{% url 'game_detail' primary.pk %}">{{ primary.name }}</a>
+                <span class="text-secondary small">stats below come from it</span>
+            </dd>
+            <dt class="col-sm-3">Players</dt>
+            <dd class="col-sm-9">
+                {% if players_low or players_high %}
+                    {{ players_low|default:"?" }}–{{ players_high|default:"?" }}
+                {% else %}
+                    <span class="text-secondary">awaiting BGG sync</span>
+                {% endif %}
+            </dd>
+            <dt class="col-sm-3">Playtime</dt>
+            <dd class="col-sm-9">
+                {% if primary.min_playtime or primary.max_playtime %}
+                    {{ primary.min_playtime|default:primary.max_playtime }}{% if primary.max_playtime and primary.min_playtime != primary.max_playtime %}–{{ primary.max_playtime }}{% endif %} min
+                {% else %}
+                    <span class="text-secondary">awaiting BGG sync</span>
+                {% endif %}
+            </dd>
+            <dt class="col-sm-3">Weight</dt>
+            <dd class="col-sm-9">
+                {% if primary.weight %}{{ primary.weight }} / 5
+                {% else %}<span class="text-secondary" title="Weight comes from BGG's /thing endpoint (DESIGN §8) — this game hasn't picked it up yet.">not yet synced</span>{% endif %}
+            </dd>
+            {% if primary.bgg_rating %}
+            <dt class="col-sm-3">BGG rating</dt>
+            <dd class="col-sm-9">{{ primary.bgg_rating }}{% if primary.bgg_rank %} (rank <a href="https://boardgamegeek.com/browse/boardgame?sort=rank&amp;rankobjecttype=subtype&amp;rankobjectid=1&amp;rank={{ primary.bgg_rank }}#{{ primary.bgg_rank }}" target="_blank" rel="noopener">{{ primary.bgg_rank }}</a>){% endif %}</dd>
+            {% endif %}
+            {% if plays_total %}
+            <dt class="col-sm-3">Plays</dt>
+            <dd class="col-sm-9">
+                {{ plays_total }}<span class="text-secondary small"> logged on BGG</span>
+                <span class="text-secondary small">
+                    ({% for member, count in plays_rows %}{{ member.name }}: {{ count }}{% if not forloop.last %}, {% endif %}{% endfor %})
+                </span>
+            </dd>
+            {% endif %}
+        </dl>
+    </div>
+</div>
+
+{# The one new section versus the game page: the member grid. #}
+<h2 class="h5 mb-3">Games in this series</h2>
+{% if members %}
+<div class="cover-grid mb-4">
+    {% for game in members %}
+    <a class="cover" title="{{ game.name }}" href="{% url 'game_detail' game.pk %}">
+        {% include "partials/cover_art.html" with use_preview=True %}
+        <span class="cover-flags">
+            {% if game.pk == series.primary_game_id %}
+            <span class="cover-flag cover-flag-primary" title="Primary game">
+                <i class="bi bi-star-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Primary game</span>
+            </span>
+            {% endif %}
+        </span>
+        <span class="cover-label">{{ game.name }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary mb-4">No member games yet — add some in the editor.</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <span>Copies <span class="badge text-bg-info ms-1">{{ copies|length }}</span></span>
+                {% if my_copy_count and locations %}
+                {% comment %}
+                Issue #58: move all of the current user's copies of the members to
+                one location at once. Scoped to the viewer's own active copies in
+                the view; another owner's copies of the same members are untouched.
+                {% endcomment %}
+                <form method="post" action="{% url 'series_set_location' series.pk %}"
+                      class="d-flex align-items-center gap-2 mb-0">
+                    {% csrf_token %}
+                    <label class="form-label mb-0 fw-normal small" for="series-bulk-location">
+                        Move all {{ my_copy_count }} of your cop{{ my_copy_count|pluralize:"y,ies" }} to:
+                    </label>
+                    <select class="form-select form-select-sm w-auto" id="series-bulk-location"
+                            name="location" required>
+                        <option value="">Choose a location…</option>
+                        {% for location in locations %}
+                        <option value="{{ location.pk }}">{{ location.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-primary">Move</button>
+                </form>
+                {% endif %}
+            </div>
+            {% if request.GET.moved %}
+            <div class="alert alert-success mb-0 rounded-0 border-0 border-bottom" role="status">
+                Moved {{ request.GET.moved }} of your copies to a new location.
+            </div>
+            {% endif %}
+            <div class="card-body p-0">
+                {# Copies stay per-member (§4) — pooled for browsing only, #}
+                {# so every row names its game. No Add-copy here: that is a #}
+                {# per-game action on the member's page. #}
+                {% include "partials/copies_table.html" with show_game=True empty_text="No copies of any member game." %}
+            </div>
+        </div>
+    </div>
+
+    {% if purchase_rows %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                Purchases <span class="badge text-bg-info ms-1">{{ purchase_rows|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/purchases_table.html" %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% comment %}
+    Issue #127: every member game's expansions, pooled into one list. Owned
+    ones (an active Copy exists) list their owners; known-but-unowned ones
+    follow in muted italic. Each row names the base member it expands and links
+    to the expansion's own game page. Owned first, then by name.
+    {% endcomment %}
+    {% if expansion_rows %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                Expansions <span class="badge text-bg-info ms-1">{{ owned_expansion_count }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <tbody>
+                        {% for row in expansion_rows %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'game_detail' row.game.pk %}"{% if not row.owned %} class="fst-italic text-secondary"{% endif %}>{{ row.game.short_name }}</a>
+                                <span class="text-secondary small">({{ row.base.name }})</span>
+                                {% if row.override %}
+                                <span class="text-secondary small">{{ row.override }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if row.owned %}
+                                {% for owner in row.owners %}
+                                <span class="badge text-bg-secondary">{{ owner }}</span>
+                                {% endfor %}
+                                {% else %}
+                                <span class="text-secondary small fst-italic">not owned</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% comment %}
+    Issue #133: the read-only plays log pooled across members — most recent
+    first, capped. show_game names which member each play belongs to. The top
+    hero stat keeps the raw bgg_numplays COUNT, which also includes plays
+    posted without detail; this feed is the richer per-play history.
+    {% endcomment %}
+    {% if recent_plays %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                Recent plays <span class="badge text-bg-info ms-1">{{ plays_count }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/plays_table.html" with plays=recent_plays show_game=True %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

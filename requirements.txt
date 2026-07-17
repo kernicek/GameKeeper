@@ -1,0 +1,12 @@
+Django==5.2.15
+django-axes>=7.0,<8.0
+django-simple-history==3.12.0
+django-celery-results==2.6.0
+celery==5.6.3
+redis==5.2.1
+Pillow>=10.0
+python-dotenv>=1.0
+requests>=2.31
+openpyxl>=3.1
+cryptography>=42.0
+django-impersonate>=1.9

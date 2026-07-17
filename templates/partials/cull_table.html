@@ -1,0 +1,126 @@
+<p class="text-secondary mb-3">
+    Showing {{ copy_count }} of {{ total_count }} active cop{{ total_count|pluralize:"y,ies" }}
+</p>
+
+{% if copies %}
+{# Issue #24: pins the row order across inline edits (see hx-include below) #}
+{# so an edit's own sort fields don't make the row jump; only a full load #}
+{# or filter change (neither posts this) re-applies a fresh cull sort. #}
+<input type="hidden" id="frozen-order" name="frozen_order" value="{{ frozen_order }}">
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Game</th>
+                    {# Issue #9: icon headers (bootstrap-icons) to save width; #}
+                    {# title = the tooltip that names the column. #}
+                    <th class="text-end" title="Excitement">
+                        <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
+                        <span class="visually-hidden">Excitement</span>
+                    </th>
+                    <th>Keep</th>
+                    <th class="text-center" title="Immune from culling">
+                        <i class="bi bi-shield-fill-check" aria-hidden="true"></i>
+                        <span class="visually-hidden">Immune</span>
+                    </th>
+                    <th>Why it might leave</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for copy in copies %}
+                <tr>
+                    <td>
+                        <a href="{% url 'game_detail' copy.edition.game.pk %}">
+                            {{ copy.edition.game.name }}
+                        </a>
+                        {% if copy.edition.name %}
+                            <span class="text-secondary small">{{ copy.edition.name }}</span>
+                        {% endif %}
+                        {% if copy.edition.game.bgg_collection_status == "prev_owned" %}
+                            <span class="badge text-bg-danger">prev. owned on BGG</span>
+                        {% endif %}
+                    </td>
+                    {# In-place §11 editing: change posts the one field plus #}
+                    {# the hx-include'd filters and pinned order (issue #24) #}
+                    {# so the table stays as-is instead of re-sorting fresh. #}
+                    <td class="text-end">
+                        <input type="number" name="excitement"
+                               class="form-control form-control-sm excitement-input"
+                               value="{{ copy.excitement|default_if_none:'' }}"
+                               min="0" max="10" step="0.5" inputmode="decimal"
+                               aria-label="Excitement for {{ copy.edition.game.name }}"
+                               hx-post="{% url 'curation_edit' copy.pk %}"
+                               hx-target="#cull-results"
+                               hx-include="#cull-filters, #frozen-order">
+                    </td>
+                    <td>
+                        <select name="keep_status"
+                                class="form-select form-select-sm keep-select"
+                                aria-label="Keep status for {{ copy.edition.game.name }}"
+                                hx-post="{% url 'curation_edit' copy.pk %}"
+                                hx-target="#cull-results"
+                                hx-include="#cull-filters, #frozen-order">
+                            <option value="">—</option>
+                            {% for value, label in keep_status_choices %}
+                            <option value="{{ value }}"
+                                    {% if value == copy.keep_status %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    {# The checkbox posts an explicit 1/0 via hx-vals — an #}
+                    {# unchecked checkbox would otherwise send nothing. #}
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input"
+                               {% if copy.immune %}checked{% endif %}
+                               aria-label="Immune for {{ copy.edition.game.name }}"
+                               hx-post="{% url 'curation_edit' copy.pk %}"
+                               hx-target="#cull-results"
+                               hx-include="#cull-filters, #frozen-order"
+                               hx-vals='js:{immune: event.target.checked ? "1" : "0"}'>
+                    </td>
+                    <td>
+                        <input type="text" name="why_might_leave"
+                               class="form-control form-control-sm"
+                               value="{{ copy.why_might_leave }}"
+                               aria-label="Why {{ copy.edition.game.name }} might leave"
+                               hx-post="{% url 'curation_edit' copy.pk %}"
+                               hx-target="#cull-results"
+                               hx-include="#cull-filters, #frozen-order">
+                        {% if copy.play_until_or_leaves %}
+                            <div class="text-secondary small">
+                                Play until: {{ copy.play_until_or_leaves }}
+                            </div>
+                        {% endif %}
+                    </td>
+                    {# DESIGN §11: Archive is the endpoint of the curation #}
+                    {# lifecycle — the row leaves the active views for good. #}
+                    {# Prev-owned on BGG means the copy already left the #}
+                    {# collection out there — those rows archive as sold. #}
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                hx-post="{% url 'curation_archive' copy.pk %}"
+                                hx-target="#cull-results" hx-include="#cull-filters"
+                                {% if copy.edition.game.bgg_collection_status == "prev_owned" %}
+                                hx-vals='{"reason": "sold"}'
+                                hx-confirm="Archive {{ copy.edition.game.name }} as sold? BGG already lists it as previously owned. It disappears from active views (the admin can undo)."
+                                {% else %}
+                                hx-confirm="Archive {{ copy.edition.game.name }} as culled? It disappears from active views (the admin can undo)."
+                                {% endif %}>
+                            Cull
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">No copies match these filters.</div>
+{% endif %}

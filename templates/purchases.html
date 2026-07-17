@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Purchases | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Purchases &amp; preorders</h1>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'purchase_add' %}">Add purchase</a>
+</div>
+
+{# Purchase-pipeline browse view (DESIGN §6): in-flight purchases first, #}
+{# dead ones last; the dashboard keeps the "needs attention" cut. #}
+<form class="card mb-4" id="purchase-filters"
+      hx-get="{% url 'purchases' %}" hx-target="#purchase-results"
+      hx-trigger="input delay:300ms" hx-push-url="true">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-status">Status</label>
+                <select class="form-select" id="f-status" name="status">
+                    <option value="">any</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}"
+                            {% if value == filters.status %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-platform">Platform</label>
+                <select class="form-select" id="f-platform" name="platform">
+                    <option value="">any</option>
+                    {% for value, label in platform_choices %}
+                    <option value="{{ value }}"
+                            {% if value == filters.platform %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-q">Search</label>
+                <input type="search" class="form-control" id="f-q" name="q"
+                       placeholder="Search by name…" aria-label="Search by name"
+                       value="{{ filters.q }}">
+            </div>
+            {# Reset rides alongside the filter controls (matches the chooser card). #}
+            <div class="col-auto ms-auto">
+                <a class="small" href="{% url 'purchases' %}">Reset filters</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div id="purchase-results">
+    {% include "partials/purchase_table.html" %}
+</div>
+{% endblock %}

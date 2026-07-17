@@ -1,0 +1,62 @@
+<p class="text-secondary mb-3">
+    Showing {{ copy_count }} of {{ total_count }} archived cop{{ total_count|pluralize:"y,ies" }}
+</p>
+
+{% if copies %}
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Game</th>
+                    <th>Reason</th>
+                    <th>Archived</th>
+                    <th class="text-end">Excitement</th>
+                    <th>Why it left</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for copy in copies %}
+                <tr>
+                    <td>
+                        <a href="{% url 'game_detail' copy.edition.game.pk %}">
+                            {{ copy.edition.game.name }}
+                        </a>
+                        {% if copy.edition.name %}
+                            <span class="text-secondary small">{{ copy.edition.name }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if copy.archive_reason == "sold" %}
+                            <span class="badge text-bg-success">{{ copy.get_archive_reason_display }}</span>
+                        {% elif copy.archive_reason == "gifted" %}
+                            <span class="badge text-bg-info">{{ copy.get_archive_reason_display }}</span>
+                        {% elif copy.archive_reason == "lost" %}
+                            <span class="badge text-bg-warning">{{ copy.get_archive_reason_display }}</span>
+                        {% elif copy.archive_reason %}
+                            <span class="badge text-bg-secondary">{{ copy.get_archive_reason_display }}</span>
+                        {% else %}
+                            <span class="text-secondary">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ copy.archive_date|date:"j M Y"|default:"—" }}</td>
+                    <td class="text-end">{{ copy.excitement|default_if_none:"—" }}</td>
+                    <td>
+                        {{ copy.why_might_leave|default:"—" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% elif total_count %}
+<div class="alert alert-secondary">No archived copies match this filter.</div>
+{% else %}
+<div class="alert alert-secondary">
+    Nothing archived yet — culling a copy on the
+    <a href="{% url 'curation' %}">curation page</a> lands it here.
+</div>
+{% endif %}

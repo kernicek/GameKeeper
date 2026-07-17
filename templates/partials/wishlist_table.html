@@ -1,0 +1,28 @@
+{% if entries %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr><th>Game</th><th>Priority</th><th>Added</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td><a href="{% url 'game_detail' entry.game.pk %}">{{ entry.game.name }}</a></td>
+            <td>{{ entry.get_priority_display }}</td>
+            <td>{{ entry.added_at|date:"Y-m-d" }}</td>
+            <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        hx-post="{% url 'wishlist_remove' entry.pk %}"
+                        hx-target="#wishlist-results" hx-swap="innerHTML"
+                        hx-confirm="Remove {{ entry.game.name }} from your wishlist?">
+                    Remove
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary p-3 mb-0">Nothing on your wishlist yet.</p>
+{% endif %}

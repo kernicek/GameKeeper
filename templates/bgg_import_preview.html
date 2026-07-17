@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Import from BGG — preview | GameKeeper{% endblock %}
+
+{% block content %}
+{# Bulk collection import, step 2 of 3 (issue #81): the fetched candidates #}
+{# with per-row include checkboxes; the resolved action rides a hidden input. #}
+{# Rows already linked by BGG id are listed below and never re-imported. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Import from BGG — preview</h1>
+    <a class="small" href="{% url 'bgg_import' %}">change statuses</a>
+</div>
+
+<p class="text-muted">
+    {{ bgg_username }}: {{ preview.candidates|length }} game{{ preview.candidates|length|pluralize }} to import,
+    {{ preview.existing|length }} already in the app.
+</p>
+
+{% if preview.candidates %}
+<form method="post" action="{% url 'bgg_import' %}">
+    {% csrf_token %}
+    <input type="hidden" name="step" value="import">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>
+                        <input class="form-check-input" type="checkbox" id="select-all-master"
+                               checked aria-label="Select all games">
+                    </th>
+                    <th></th>
+                    <th>Game</th>
+                    <th>BGG statuses</th>
+                    <th>Will create</th>
+                </tr>
+            </thead>
+            {% for group in grouped_candidates %}
+            <tbody>
+                <tr class="table-light">
+                    <td colspan="5">
+                        <input class="form-check-input group-toggle" type="checkbox"
+                               data-group="{{ group.action }}" checked
+                               aria-label="Select all {{ group.label }}">
+                        <strong>{{ group.label }}</strong>
+                        <span class="text-muted">({{ group.candidates|length }})</span>
+                        {% if group.action == "wishlist" and group.has_priority %}
+                        <span class="ms-3">
+                            <label for="priority-filter" class="small text-muted">Wishlist priority ≤</label>
+                            <select id="priority-filter" class="form-select form-select-sm d-inline-block w-auto">
+                                <option value="5" selected>5 (all)</option>
+                                <option value="4">4</option>
+                                <option value="3">3</option>
+                                <option value="2">2</option>
+                                <option value="1">1 (must-have only)</option>
+                            </select>
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% for c in group.candidates %}
+                <tr>
+                    <td>
+                        <input class="form-check-input include-checkbox" type="checkbox" name="include"
+                               value="{{ c.bgg_id }}" checked data-group="{{ c.action }}"
+                               {% if c.wishlist_priority %}data-priority="{{ c.wishlist_priority }}"{% endif %}
+                               aria-label="Include {{ c.name }}">
+                        <input type="hidden" name="action_{{ c.bgg_id }}" value="{{ c.action }}">
+                        {# Issue #82: carried alongside action_<id> so the confirm step #}
+                        {# can seed keep_status=WILL_LEAVE on the created copy. #}
+                        {% if c.fortrade %}
+                        <input type="hidden" name="fortrade_{{ c.bgg_id }}" value="1">
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if c.thumbnail_url %}
+                        <img src="{{ c.thumbnail_url }}" alt="" style="max-height: 3rem;">
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ c.name }}
+                        {% if c.year_published %}<span class="text-muted">({{ c.year_published }})</span>{% endif %}
+                    </td>
+                    <td>
+                        {% for label in c.status_labels %}
+                        <span class="badge text-bg-secondary">{{ label }}</span>
+                        {% endfor %}
+                        {% if c.wishlist_priority %}
+                        <span class="badge text-bg-info">priority {{ c.wishlist_priority }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ c.action_label }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% endfor %}
+        </table>
+    </div>
+    <button class="btn btn-primary" type="submit">Import selected</button>
+    <div class="form-text">
+        Each game is fetched from BGG individually — a large import takes a
+        while. Already-imported games are skipped, so re-running is safe.
+    </div>
+</form>
+{# Select-all / per-action group toggles / wishlist-priority filter (issue #88) — client-side only, no re-fetch. #}
+<script>
+(function () {
+    var master = document.getElementById("select-all-master");
+    var checkboxes = Array.prototype.slice.call(document.querySelectorAll(".include-checkbox"));
+    var groupToggles = Array.prototype.slice.call(document.querySelectorAll(".group-toggle"));
+    var priorityFilter = document.getElementById("priority-filter");
+
+    function syncMaster() {
+        if (!master) return;
+        var checkedCount = checkboxes.filter(function (c) { return c.checked; }).length;
+        master.checked = checkedCount === checkboxes.length;
+        master.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+
+    function syncGroupToggle(action) {
+        var toggle = groupToggles.filter(function (t) { return t.dataset.group === action; })[0];
+        if (!toggle) return;
+        var rows = checkboxes.filter(function (c) { return c.dataset.group === action; });
+        var checkedCount = rows.filter(function (c) { return c.checked; }).length;
+        toggle.checked = checkedCount === rows.length;
+        toggle.indeterminate = checkedCount > 0 && checkedCount < rows.length;
+    }
+
+    checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener("change", function () {
+            syncGroupToggle(checkbox.dataset.group);
+            syncMaster();
+        });
+    });
+
+    if (master) {
+        master.addEventListener("change", function () {
+            checkboxes.forEach(function (c) { c.checked = master.checked; });
+            groupToggles.forEach(function (t) { syncGroupToggle(t.dataset.group); });
+        });
+    }
+
+    groupToggles.forEach(function (toggle) {
+        toggle.addEventListener("change", function () {
+            checkboxes
+                .filter(function (c) { return c.dataset.group === toggle.dataset.group; })
+                .forEach(function (c) { c.checked = toggle.checked; });
+            syncMaster();
+        });
+    });
+
+    if (priorityFilter) {
+        priorityFilter.addEventListener("change", function () {
+            var max = Number(priorityFilter.value);
+            checkboxes
+                .filter(function (c) { return c.dataset.group === "wishlist" && c.dataset.priority; })
+                .forEach(function (c) { c.checked = Number(c.dataset.priority) <= max; });
+            syncGroupToggle("wishlist");
+            syncMaster();
+        });
+    }
+
+    groupToggles.forEach(function (t) { syncGroupToggle(t.dataset.group); });
+    syncMaster();
+})();
+</script>
+{% else %}
+<div class="alert alert-info" role="alert">
+    Nothing new to import — every fetched game is already in the app.
+</div>
+{% endif %}
+
+{% if preview.existing %}
+<h2 class="h5 mt-4">Already in the app</h2>
+<ul class="list-unstyled">
+    {% for row in preview.existing %}
+    <li>
+        <a href="{% url 'game_detail' row.game.pk %}">{{ row.game.name|default:row.name }}</a>
+        <span class="text-muted">— BGG #{{ row.bgg_id }}</span>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Settings | GameKeeper{% endblock %}
+
+{% block content %}
+{% comment %}
+The general Settings page (issue #137). Sections stack as cards here — adding a
+future setting means adding another card/section, not another page.
+
+The BGG password is write-only (issue #118): the view never sends the stored
+secret to this template, so there is nothing to leak — we render only the
+has_password badge and empty inputs to replace/clear it.
+{% endcomment %}
+<h1 class="h3 mb-4">Settings</h1>
+
+<div class="row">
+    {% if pending_invites %}
+    <div class="col-lg-6">
+        <div class="card mb-4 mb-lg-0">
+            <div class="card-header">Household invites</div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Accepting moves you into that household as a Member and
+                    closes your own solo group.
+                </p>
+                {% for invite in pending_invites %}
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span>{{ invite.group.name }}</span>
+                    <div class="d-flex gap-2">
+                        <form method="post" action="{% url 'invite_accept' invite.pk %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-primary" type="submit">Accept</button>
+                        </form>
+                        <form method="post" action="{% url 'invite_decline' invite.pk %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-outline-secondary" type="submit">Decline</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex align-items-baseline justify-content-between">
+                <span>BGG account</span>
+                <a class="small" href="{% url 'bgg_import' %}">import collection</a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Used to sync stats and import your collection from
+                    BoardGameGeek. Your password is encrypted at rest and is
+                    never shown back to you.
+                </p>
+                <form method="post" action="{% url 'settings' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="f-bgg-username">BGG username</label>
+                        <input class="form-control" id="f-bgg-username" name="bgg_username"
+                               value="{{ bgg_username }}" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="f-bgg-password">BGG password</label>
+                        <div class="mb-1">
+                            {% if has_password %}
+                            <span class="badge text-bg-success">Password is set</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary">No password stored</span>
+                            {% endif %}
+                        </div>
+                        <input class="form-control" id="f-bgg-password" name="bgg_password"
+                               type="password" value="" autocomplete="new-password">
+                        <div class="form-text">
+                            Leave blank to keep the current password.
+                        </div>
+                    </div>
+                    {% if has_password %}
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox"
+                               name="clear_password" id="f-clear-password">
+                        <label class="form-check-label" for="f-clear-password">
+                            Remove the stored password
+                        </label>
+                    </div>
+                    {% endif %}
+                    {% if env_fallback %}
+                    <div class="form-text mb-3">
+                        A server-wide BGG account is configured as a fallback;
+                        anything you set here overrides it for your syncs.
+                    </div>
+                    {% endif %}
+                    <button class="btn btn-primary" type="submit">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card mt-4">
+            <div class="card-header">Notifications</div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Optional: get deadline reminders pushed to your own
+                    <a href="https://ntfy.sh/" target="_blank" rel="noopener">ntfy</a>
+                    topic, alongside the email digest. Leave blank to stay
+                    email-only.
+                </p>
+                {% if ntfy_test_result == "ok" %}
+                <div class="alert alert-success py-2 small">Test notification sent.</div>
+                {% elif ntfy_test_result == "fail" %}
+                <div class="alert alert-danger py-2 small">
+                    Couldn't reach the ntfy server — check NTFY_SERVER_URL/NTFY_AUTH_TOKEN
+                    and the server logs.
+                </div>
+                {% endif %}
+                <form method="post" action="{% url 'settings' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="f-ntfy-topic">ntfy topic</label>
+                        <input class="form-control" id="f-ntfy-topic" name="ntfy_topic"
+                               value="{{ ntfy_topic }}" autocomplete="off">
+                    </div>
+                    <button class="btn btn-primary" type="submit">Save</button>
+                    <button class="btn btn-outline-secondary" type="submit" id="f-ntfy-test"
+                            formaction="{% url 'settings_ntfy_test' %}" disabled>
+                        Send test notification
+                    </button>
+                </form>
+                <hr>
+                <p class="text-muted small">
+                    Email digest reminders go to your account address
+                    {% if user_email %}({{ user_email }}){% else %}— no address on file{% endif %}.
+                </p>
+                {% if email_test_result == "ok" %}
+                <div class="alert alert-success py-2 small">Test email sent.</div>
+                {% elif email_test_result == "fail" %}
+                <div class="alert alert-danger py-2 small">
+                    Couldn't send the test email — check EMAIL_HOST/EMAIL_HOST_USER/EMAIL_HOST_PASSWORD
+                    and the server logs.
+                </div>
+                {% endif %}
+                <form method="post" action="{% url 'settings_email_test' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-outline-secondary" type="submit" {% if not user_email %}disabled{% endif %}>
+                        Send test email
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Test-notification button (issue #162): only enabled once a topic is
+    // both non-blank and matches what's actually saved — defaultValue holds
+    // the server-rendered (saved) value, unaffected by in-progress typing,
+    // so an unsaved edit disables the button until Save is pressed again.
+    const ntfyInput = document.getElementById("f-ntfy-topic");
+    const ntfyTestBtn = document.getElementById("f-ntfy-test");
+    const syncNtfyTestButton = () => {
+        ntfyTestBtn.disabled = !ntfyInput.defaultValue || ntfyInput.value !== ntfyInput.defaultValue;
+    };
+    ntfyInput.addEventListener("input", syncNtfyTestButton);
+    syncNtfyTestButton();
+</script>
+{% endblock %}

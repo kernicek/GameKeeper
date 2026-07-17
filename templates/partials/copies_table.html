@@ -1,0 +1,69 @@
+{# Copies table shared by game_detail and series_detail (issue #21). #}
+{# Context: copies, empty_text, show_game (adds a leading game column — #}
+{# the series page pools copies across members, so "default edition" #}
+{# alone would not say WHOSE default edition). #}
+{% if copies %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            {% if show_game %}<th>Game</th>{% endif %}
+            <th>Edition</th>
+            <th>Owner</th>
+            <th>Location</th>
+            <th class="text-end">Excitement</th>
+            <th>Keep</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for copy in copies %}
+        <tr>
+            {% if show_game %}
+            <td><a href="{% url 'game_detail' copy.edition.game_id %}">{{ copy.edition.game.name }}</a></td>
+            {% endif %}
+            <td>
+                {{ copy.edition.name|default:"default edition" }}
+                {% if copy.archive_status == "archived" %}
+                <span class="badge text-bg-danger">archived</span>
+                {% endif %}
+                {% if copy.ready_status == "not_ready" %}
+                <span class="badge text-bg-warning">needs prep</span>
+                {% endif %}
+                {% if copy.immune %}
+                <span class="badge text-bg-info">immune</span>
+                {% endif %}
+                {% if copy.is_borrowed_in %}
+                <span class="badge text-bg-secondary">borrowed</span>
+                {% elif copy.active_loan %}
+                <span class="badge text-bg-secondary">lent out</span>
+                {% endif %}
+            </td>
+            <td>{{ copy.owner.username }}</td>
+            <td>
+                {{ copy.location.name|default:"—" }}
+                {% if copy.active_loan %}
+                <span class="text-secondary small">({{ copy.active_loan.counterparty }})</span>
+                {% endif %}
+            </td>
+            <td class="text-end">{{ copy.excitement|default_if_none:"—" }}</td>
+            <td>
+                {% if copy.keep_status == "will_leave" %}
+                <span class="badge text-bg-warning">Leaving</span>
+                {% elif copy.keep_status %}
+                <span class="badge text-bg-secondary">{{ copy.get_keep_status_display }}</span>
+                {% else %}—{% endif %}
+            </td>
+            <td class="text-end">
+                {% if copy.owner_id == request.user.pk and copy.archive_status == "active" %}
+                <a class="btn btn-sm btn-outline-secondary py-0 px-1" href="{% url 'copy_edit' copy.pk %}">Edit</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary p-3 mb-0">{{ empty_text|default:"No copies — preorder or wishlist only." }}</p>
+{% endif %}

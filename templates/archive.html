@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Archive | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Archived copies</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'curation' %}">Back to curation</a>
+</div>
+
+{# Archive shelf (DESIGN §4): copies that left the collection, retained #}
+{# for reference. Browse-only — un-archiving is an admin action. #}
+<form class="card mb-4" id="archive-filters"
+      hx-get="{% url 'archived_copies' %}" hx-target="#archive-results"
+      hx-trigger="input delay:300ms" hx-push-url="true">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-reason">Reason</label>
+                <select class="form-select" id="f-reason" name="reason">
+                    <option value="">any</option>
+                    {% for value, label in reason_choices %}
+                    <option value="{{ value }}"
+                            {% if value == filters.reason %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {# Reset rides alongside the filter controls (matches the chooser card). #}
+            <div class="col-auto ms-auto">
+                <a class="small" href="{% url 'archived_copies' %}">Reset filters</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div id="archive-results">
+    {% include "partials/archive_table.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{# Shared by the §11 dashboard card (capped) and the full-list page (issue #64). #}
+{# full_scope=True on the full page: no cap, no header link/hint, and actions #}
+{# post with ?full=1 so the re-render stays uncapped. #}
+<div class="card-header d-flex align-items-center justify-content-between">
+    <span>
+        {% if full_scope %}New expansions{% else %}<a href="{% url 'dashboard_new_expansions' %}">New expansions</a>{% endif %}
+        <span class="badge text-bg-info ms-1">{{ new_expansions_total }}</span>
+    </span>
+</div>
+<div class="card-body p-0">
+    {% if new_expansions %}
+    <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+        <thead>
+            <tr><th>Expansion</th><th></th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for diff in new_expansions %}
+            <tr>
+                <td>
+                    {{ diff.bgg_name }}
+                    <a class="text-secondary small"
+                       href="https://boardgamegeek.com/boardgameexpansion/{{ diff.bgg_id }}">BGG {{ diff.bgg_id }}</a>
+                    {% if diff.note %}<div class="text-secondary small">{{ diff.note }}</div>{% endif %}
+                </td>
+                <td>
+                    <form class="d-flex gap-1"
+                          hx-post="{% url 'wishlist_add' diff.pk %}{% if full_scope %}?full=1{% endif %}"
+                          hx-target="#new-expansion-widget">
+                        <select class="form-select form-select-sm" name="priority">
+                            {% for value, label in wishlist_priority_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Add to wishlist</button>
+                    </form>
+                </td>
+                {# §8: dismiss = per-user "not interested, never nag again". #}
+                <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            hx-post="{% url 'new_expansion_dismiss' diff.pk %}{% if full_scope %}?full=1{% endif %}"
+                            hx-target="#new-expansion-widget">Dismiss</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-secondary p-3 mb-0">No new expansions.</p>
+    {% endif %}
+    {% if not full_scope and new_expansions_total > card_limit %}
+    <p class="text-secondary small px-3 py-2 mb-0 border-top">
+        Showing {{ card_limit }} of {{ new_expansions_total }} —
+        <a href="{% url 'dashboard_new_expansions' %}">view all</a>.
+    </p>
+    {% endif %}
+</div>

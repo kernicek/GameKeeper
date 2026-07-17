@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}{% if series %}Edit — {{ series.name }}{% else %}New series{% endif %} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Series editor (DESIGN §4, issues #21/#54): name and member picking in a #}
+{# settled-page form; the custom tile cover gets the shared htmx cover #}
+{# editor column (game_edit style) once the series exists — the add page #}
+{# keeps a plain file input because there is no pk to POST covers to yet. #}
+{# The radio beside each member checkbox keeps "primary ⊂ members" visible #}
+{# at a glance; the view enforces it as a 400. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">{% if series %}Edit — {{ series.name }}{% else %}New series{% endif %}</h1>
+    {% if series %}
+    <a class="small" href="{% url 'series_detail' series.pk %}">back to series</a>
+    {% else %}
+    <a class="small" href="{% url 'collection' %}">back to collection</a>
+    {% endif %}
+</div>
+
+<div class="row g-4">
+    {% if series %}
+    <div class="col-md-4 col-lg-3" id="cover-column">
+        {% url 'series_cover_edit' series.pk as cover_edit_url %}
+        {% url 'series_cover_focus' series.pk as cover_focus_url %}
+        {% include "partials/cover_editor.html" with game=series cover_can_clear=True %}
+    </div>
+    {% endif %}
+
+    <div class="{% if series %}col-md-8 col-lg-9{% else %}col-12{% endif %}">
+        <div class="card">
+            <div class="card-header">
+                {% if series %}Series details{% else %}Group interchangeable games into one collection tile{% endif %}
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data"
+                      action="{% if series %}{% url 'series_edit' series.pk %}{% else %}{% url 'series_add' %}{% endif %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="series-name">Name</label>
+                        <input class="form-control" type="text" id="series-name"
+                               name="name" value="{{ series.name|default:'' }}" required>
+                        <div class="form-text">
+                            The collection grid shows this name on the collapsed tile.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <span class="form-label d-block">Members</span>
+                        <div class="form-text mb-2">
+                            Base games only, not claimed by another series. Pick the
+                            <strong>primary</strong> member whose cover and stats
+                            represent the series.
+                        </div>
+                        <input class="form-control form-control-sm mb-2" type="search"
+                               id="member-filter" placeholder="Filter games…"
+                               autocomplete="off" aria-label="Filter games">
+                        <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="member-table">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th class="text-center">Primary</th>
+                                    <th>Game</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for game in candidates %}
+                                {# data-name feeds the filter; hiding rows (never #}
+                                {# disabling) keeps checked members submitting. #}
+                                <tr data-name="{{ game.name|lower }} {{ game.bgg_name|lower }}">
+                                    <td class="text-center">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="members" value="{{ game.pk }}"
+                                               id="member-{{ game.pk }}"
+                                               {% if game.pk in member_pks %}checked{% endif %}>
+                                    </td>
+                                    <td class="text-center">
+                                        <input class="form-check-input" type="radio"
+                                               name="primary_game" value="{{ game.pk }}"
+                                               {% if game.pk == primary_pk %}checked{% endif %}>
+                                    </td>
+                                    <td><label for="member-{{ game.pk }}">{{ game.name }}</label></td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="text-secondary">No available base games.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+
+                    {% if not series %}
+                    <div class="mb-3">
+                        <label class="form-label" for="series-cover">Custom tile cover (optional)</label>
+                        <input class="form-control" type="file" id="series-cover"
+                               name="cover" accept="image/*">
+                        <div class="form-text">
+                            When unset, the tile uses the primary member's cover with
+                            its crop and zoom. Focus and zoom tools appear here once
+                            the series is saved.
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <button class="btn btn-primary" type="submit">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Member filter (issue #54): client-side so in-progress checkbox/radio
+    // picks survive typing — rows are hidden, never re-rendered or disabled.
+    const memberFilter = document.getElementById("member-filter");
+    memberFilter.addEventListener("input", () => {
+        const q = memberFilter.value.trim().toLowerCase();
+        for (const row of document.querySelectorAll("#member-table tbody tr[data-name]")) {
+            row.hidden = Boolean(q) && !row.dataset.name.includes(q);
+        }
+    });
+</script>
+{% endblock %}

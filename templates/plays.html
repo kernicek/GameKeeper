@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{% if game %}{{ game.name }} plays{% else %}Plays{% endif %} | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">
+        {% if game %}Plays of {{ game.name }}{% else %}Recent plays{% endif %}
+    </h1>
+    {% if game %}
+    <a class="small" href="{% url 'plays' %}">All games</a>
+    {% endif %}
+</div>
+
+{# Read-only plays feed (issue #65, DESIGN §8): the history BGG holds for this #}
+{# account (BG Stats' auto-post). GameKeeper is not a play-logger — nothing #}
+{# here is editable. Recent-first, capped; scope to one game with ?game=<pk>. #}
+<div class="card">
+    <div class="card-body p-0">
+        {% include "partials/plays_table.html" with plays=plays show_game=True %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% load static %}
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}GameKeeper{% endblock %}</title>
+    {# Temporary favicon: Bootstrap Icons dice-5-fill inlined as SVG, Vapor secondary pink. #}
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ea39b8'%3E%3Cpath d='M3 0a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V3a3 3 0 0 0-3-3H3zm2.5 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm8 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-8 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm8 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-4-4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'/%3E%3C/svg%3E">
+    {# Bootswatch "Vapor" (DESIGN §13 — chosen 2026-07): vendored, self-hosted. #}
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+    {# Bootstrap Icons webfont (issue #8): vendored, self-hosted; drives the #}
+    {# grid preorder/prev-owned flags and the curation icon headers (#9). #}
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+    {# Env banner + navbar pin to the top so they stay reachable on scroll. #}
+    {# bg-body keeps the navbar opaque once stuck, so content scrolls under it. #}
+    <header class="sticky-top">
+    {% if SHOW_ENV_BANNER %}
+    <div class="text-center fw-bold text-uppercase py-1 bg-warning text-dark" style="letter-spacing:.08em;font-size:.8rem;">
+        &#9888; {{ ENVIRONMENT }} &mdash; not production
+    </div>
+    {% endif %}
+    {# Impersonation banner (issue #108): always visible while a superuser is viewing as another user, with one-click exit back to the real identity. #}
+    {% if request.user.is_impersonate %}
+    <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 py-1 bg-primary text-white" style="font-size:.85rem;">
+        <span>&#128065; Impersonating <strong>{{ request.user.username }}</strong></span>
+        <a href="{% url 'impersonate-stop' %}" class="btn btn-sm btn-light py-0">Exit impersonation</a>
+    </div>
+    {% endif %}
+    <nav class="navbar navbar-expand-lg bg-body">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'collection' %}">GameKeeper</a>
+            {# Below lg the links collapse behind this hamburger (Bootstrap #}
+            {# bundle JS drives the toggle); above lg they lay out inline. #}
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#mainNav" aria-controls="mainNav"
+                    aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <div class="navbar-nav me-auto">
+                    {% if user.is_authenticated %}
+                        <a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a>
+                        <a class="nav-link" href="{% url 'plays' %}">Plays</a>
+                        <a class="nav-link" href="{% url 'purchases' %}">Purchases</a>
+                        <a class="nav-link" href="{% url 'curation' %}">Curation</a>
+                        {# Issue #80: series/family overviews join Sleeves under one #}
+                        {# "Browse" dropdown instead of growing the flat nav — the #}
+                        {# navbar-brand link above already covers Collection. #}
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button"
+                               id="browseMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                                Browse
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="browseMenu">
+                                <li><a class="dropdown-item" href="{% url 'series_list' %}">Series</a></li>
+                                <li><a class="dropdown-item" href="{% url 'family_list' %}">Families</a></li>
+                                <li><a class="dropdown-item" href="{% url 'sleeves' %}">Sleeves</a></li>
+                            </ul>
+                        </div>
+                        <a class="nav-link" href="{% url 'wishlist' %}">Wishlist</a>
+                    {% endif %}
+                </div>
+                {# Issue #137: all account-scoped actions live under one username #}
+                {# dropdown at the far right, keeping the left nav to the primary #}
+                {# sections. Sharing (owner-only) and Tools (superuser-only) keep #}
+                {# their gates; the logout POST becomes a dropdown-item button. #}
+                <div class="navbar-nav ms-auto align-items-lg-center">
+                    {% comment %}
+                    Superuser-only "newer GHCR image available" hint (issue #95).
+                    update_notice is set only for superusers by the context
+                    processor, so the icon can never render for anyone else. The
+                    pink is the app's --bs-secondary (Vapor secondary); Bootstrap
+                    5.3's .text-secondary is a muted grey, not the theme colour,
+                    so the colour is set inline.
+                    {% endcomment %}
+                    {% if update_notice.update_available %}
+                        <span class="nav-link" style="color: var(--bs-secondary);"
+                              title="Update available: {{ update_notice.running }} &rarr; {{ update_notice.latest|default:'latest' }}">
+                            <i class="bi bi-arrow-up-circle-fill"></i>
+                        </span>
+                    {% endif %}
+                    {% if user.is_authenticated %}
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button"
+                               id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                                {{ user.username }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                                <li><a class="dropdown-item" href="{% url 'settings' %}">Settings</a></li>
+                                {% if user.membership.role == "owner" %}
+                                <li><a class="dropdown-item" href="{% url 'group_settings' user.membership.group.slug %}">Sharing</a></li>
+                                {% endif %}
+                                {% if user.is_superuser %}
+                                <li><a class="dropdown-item" href="{% url 'tools' %}">Tools</a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="post" action="{% url 'logout' %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="dropdown-item">Log out</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <a class="nav-link" href="{% url 'login' %}">Sign in</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+    </header>
+
+    <main class="container pt-4 pb-5">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+    {# Draggable cover focal-point marker (issues #12/#13); delegated events, #}
+    {# so it keeps working after htmx swaps the cover column. #}
+    <script src="{% static 'js/cover_focus.js' %}"></script>
+    {# Copy-to-clipboard buttons on the sharing settings page (issue #125); #}
+    {# delegated events, so it survives htmx swapping #sharing-settings. #}
+    <script src="{% static 'js/clipboard.js' %}"></script>
+    <script>
+        // Send Django's CSRF token on all htmx-issued requests.
+        document.body.addEventListener('htmx:configRequest', function (evt) {
+            evt.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+    </script>
+</body>
+</html>

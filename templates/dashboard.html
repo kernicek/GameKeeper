@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | GameKeeper{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Needs attention</h1>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <a href="{% url 'dashboard_pledge_managers' %}">Pledge managers needing action</a>
+                <span class="badge text-bg-info ms-1">{{ pm_actions_total }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/pm_actions_table.html" %}
+                {% if pm_actions_total > card_limit %}
+                <p class="text-secondary small px-3 py-2 mb-0 border-top">
+                    Showing {{ card_limit }} of {{ pm_actions_total }} —
+                    <a href="{% url 'dashboard_pledge_managers' %}">view all</a>.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <a href="{% url 'dashboard_campaigns_ending' %}">Campaigns ending soon</a>
+                <span class="badge text-bg-info ms-1">{{ ending_soon_total }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/ending_soon_table.html" %}
+                {% if ending_soon_total > card_limit %}
+                <p class="text-secondary small px-3 py-2 mb-0 border-top">
+                    Showing {{ card_limit }} of {{ ending_soon_total }} —
+                    <a href="{% url 'dashboard_campaigns_ending' %}">view all</a>.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><a href="{% url 'sleeves' %}">Sleeve shortfall</a></span>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="preorder-toggle"
+                           name="preorders" {% if include_preorders %}checked{% endif %}
+                           hx-get="{% url 'shortfall_partial' %}"
+                           hx-target="#shortfall-table" hx-swap="innerHTML">
+                    <label class="form-check-label small" for="preorder-toggle">
+                        include preorders
+                    </label>
+                </div>
+            </div>
+            <div class="card-body" id="shortfall-table">
+                {% include "partials/shortfall_table.html" %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <a href="{% url 'dashboard_incoming_waves' %}">Incoming waves</a>
+                <span class="badge text-bg-info ms-1">{{ incoming_total }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/incoming_table.html" %}
+                {% if incoming_total > card_limit %}
+                <p class="text-secondary small px-3 py-2 mb-0 border-top">
+                    Showing {{ card_limit }} of {{ incoming_total }} —
+                    <a href="{% url 'dashboard_incoming_waves' %}">view all</a>.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100" id="sync-diff-widget">
+            {% include "partials/sync_diff_widget.html" %}
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <a href="{% url 'dashboard_to_craft' %}">To craft</a>
+                <span class="badge text-bg-info ms-1">{{ to_craft_total }}</span>
+            </div>
+            <div class="card-body p-0" id="to-craft-table">
+                {% include "partials/to_craft_table.html" %}
+                {% if to_craft_total > card_limit %}
+                <p class="text-secondary small px-3 py-2 mb-0 border-top">
+                    Showing {{ card_limit }} of {{ to_craft_total }} —
+                    <a href="{% url 'dashboard_to_craft' %}">view all</a>.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100" id="new-expansion-widget">
+            {% include "partials/new_expansion_widget.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

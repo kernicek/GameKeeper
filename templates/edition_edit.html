@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}{% if edition %}Edit edition{% else %}New edition{% endif %} — {{ game.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Edition editor (issue #53): the in-app replacement for the admin-only #}
+{# Edition form — name/default/BGG version plus the per-edition physical #}
+{# attributes. Checking "default" while another default exists routes #}
+{# through the confirm modal below, which also renames the demoted #}
+{# (usually blank-named) old default so the two stay tellable-apart. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">{% if edition %}Edit edition{% else %}New edition{% endif %} — {{ game.name }}</h1>
+    <a class="small" href="{% url 'game_detail' game.pk %}">back to game</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">Edition details</div>
+            <div class="card-body">
+                <form method="post" id="edition-form"
+                      action="{% if edition %}{% url 'edition_edit' edition.pk %}{% else %}{% url 'edition_add' game.pk %}{% endif %}">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-sm-8 mb-3">
+                            <label class="form-label" for="edition-name">Name</label>
+                            <input class="form-control" type="text" id="edition-name"
+                                   name="name" value="{{ edition.name|default:'' }}"
+                                   placeholder="e.g. Kickstarter Edition">
+                            <div class="form-text">Blank for the default edition.</div>
+                        </div>
+                        <div class="col-sm-4 mb-3">
+                            <label class="form-label" for="edition-bgg-version">BGG version id</label>
+                            <input class="form-control" type="number" min="0" id="edition-bgg-version"
+                                   name="bgg_version_id"
+                                   value="{{ edition.bgg_version_id|default_if_none:'' }}">
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="edition-default"
+                               name="is_default" {% if edition.is_default %}checked{% endif %}>
+                        <label class="form-check-label" for="edition-default">Default edition</label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="edition-pnp"
+                               name="is_pnp" {% if edition.is_pnp %}checked{% endif %}>
+                        <label class="form-check-label" for="edition-pnp">Print &amp; play</label>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="edition-language">Components language</label>
+                            <select class="form-select" id="edition-language" name="components_language">
+                                <option value="">—</option>
+                                {% for value, label in components_languages %}
+                                <option value="{{ value }}" {% if edition.components_language == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="edition-size">Size category</label>
+                            <select class="form-select" id="edition-size" name="size_category">
+                                <option value="">—</option>
+                                {% for value, label in size_categories %}
+                                <option value="{{ value }}" {% if edition.size_category == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label" for="edition-boxes">Boxes</label>
+                            <input class="form-control" type="number" min="0" id="edition-boxes"
+                                   name="num_boxes" value="{{ edition.num_boxes|default_if_none:'' }}">
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label" for="edition-length">Box length (mm)</label>
+                            <input class="form-control" type="number" min="0" id="edition-length"
+                                   name="box_length_mm" value="{{ edition.box_length_mm|default_if_none:'' }}">
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label" for="edition-width">Box width (mm)</label>
+                            <input class="form-control" type="number" min="0" id="edition-width"
+                                   name="box_width_mm" value="{{ edition.box_width_mm|default_if_none:'' }}">
+                        </div>
+                        <div class="col-sm-3 mb-3">
+                            <label class="form-label" for="edition-height">Box height (mm)</label>
+                            <input class="form-control" type="number" min="0" id="edition-height"
+                                   name="box_height_mm" value="{{ edition.box_height_mm|default_if_none:'' }}">
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" type="submit">Save &amp; back to game</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if edition %}
+{# Sleeve-requirement editor (issue #129): keyed off the saved edition pk, so #}
+{# only shown when editing an existing edition, never on add. #}
+<div class="row mt-3">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">Sleeve requirements</div>
+            <div class="card-body">
+                <p class="text-secondary small">
+                    The card sizes this edition needs, and how many of each
+                    (DESIGN §5). Feeds the sleeves shortfall and per-copy worklist.
+                </p>
+                {% include "partials/sleeve_requirements_editor.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if other_default %}
+<div class="modal fade" id="default-switch-modal" tabindex="-1"
+     aria-labelledby="default-switch-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="default-switch-title">Switch default edition?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    <strong>{{ game.name }}</strong> already has a default edition
+                    (<em>{{ other_default.name|default:"unnamed" }}</em>).
+                    Make this edition the default instead?
+                </p>
+                <label class="form-label" for="old-default-name">New name for the old default</label>
+                <input class="form-control" type="text" id="old-default-name"
+                       value="{{ other_default.name }}" placeholder="e.g. Retail Edition">
+                <div class="form-text">
+                    Defaults are usually unnamed — give the demoted edition a
+                    name so it stays recognizable.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-default-switch">Switch default</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Default-switch confirm (issue #53): unique_default_edition_per_game
+    // means checking "default" here demotes the current default, so the
+    // submit detours through the modal, which rides confirm_default_switch
+    // and the demoted edition's new name along. The view 400s unconfirmed
+    // switches as the backstop.
+    const editionForm = document.getElementById("edition-form");
+    const defaultBox = document.getElementById("edition-default");
+    const switchModal = new bootstrap.Modal(
+        document.getElementById("default-switch-modal"));
+    let switchConfirmed = false;
+    editionForm.addEventListener("submit", (event) => {
+        if (defaultBox.checked && !switchConfirmed) {
+            event.preventDefault();
+            switchModal.show();
+        }
+    });
+    document.getElementById("confirm-default-switch").addEventListener("click", () => {
+        const hidden = (name, value) => {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = name;
+            input.value = value;
+            editionForm.appendChild(input);
+        };
+        hidden("confirm_default_switch", "1");
+        hidden("old_default_name",
+               document.getElementById("old-default-name").value);
+        switchConfirmed = true;
+        switchModal.hide();
+        editionForm.requestSubmit();
+    });
+</script>
+{% endif %}
+{% endblock %}

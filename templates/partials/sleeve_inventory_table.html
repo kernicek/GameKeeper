@@ -1,0 +1,59 @@
+{# Swapped whole by the pack/loose inputs (htmx target #inventory-results). #}
+{% if inventory_rows %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Card size</th>
+            <th class="text-end">Pack of</th>
+            <th class="text-end">Packs</th>
+            <th class="text-end">Loose</th>
+            <th class="text-end">Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in inventory_rows %}
+        <tr>
+            <td>
+                {% if row.product.url %}
+                    <a href="{{ row.product.url }}">{{ row.product.brand }} {{ row.product.name }}</a>
+                {% else %}
+                    {{ row.product.brand }} {{ row.product.name }}
+                {% endif %}
+            </td>
+            <td>{{ row.product.card_size }}</td>
+            <td class="text-end">{{ row.product.pack_size }}</td>
+            {# In-place §5 stock editing: each input posts just itself; the #}
+            {# inventory row is created on first edit. #}
+            <td class="text-end">
+                <input type="number" name="packs"
+                       class="form-control form-control-sm pack-count-input"
+                       value="{{ row.inventory.packs|default:"0" }}"
+                       min="0" step="1" inputmode="numeric"
+                       aria-label="Packs of {{ row.product }}"
+                       hx-post="{% url 'sleeve_inventory_edit' row.product.pk %}"
+                       hx-target="#inventory-results">
+            </td>
+            <td class="text-end">
+                <input type="number" name="loose"
+                       class="form-control form-control-sm pack-count-input"
+                       value="{{ row.inventory.loose|default:"0" }}"
+                       min="0" step="1" inputmode="numeric"
+                       aria-label="Loose sleeves of {{ row.product }}"
+                       hx-post="{% url 'sleeve_inventory_edit' row.product.pk %}"
+                       hx-target="#inventory-results">
+            </td>
+            <td class="text-end">
+                {% if row.inventory %}{{ row.inventory.total_sleeves }}{% else %}0{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary p-3 mb-0">
+    No sleeve products yet — add them in the admin (or run the sleeves import).
+</p>
+{% endif %}

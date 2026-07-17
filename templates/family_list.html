@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Families | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Families</h1>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'family_add' %}">New family</a>
+</div>
+
+{% if family_rows %}
+<div class="cover-grid">
+    {% for family in family_rows %}
+    <a class="cover" title="{{ family.name }}" href="{% url 'family_detail' family.pk %}">
+        {% include "partials/cover_art.html" with game=family.cover_source use_preview=True %}
+        <span class="cover-label">{{ family.name }}</span>
+        <span class="cover-flag cover-flag-count"
+              title="{{ family.member_count }} game{{ family.member_count|pluralize }} in family">{{ family.member_count }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">No families yet.</div>
+{% endif %}
+{% endblock %}

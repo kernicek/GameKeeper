@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Pledge plan — {{ purchase.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+<nav class="mb-3">
+    <a class="small" href="{% url 'purchase_detail' purchase.pk %}">&larr; {{ purchase.name }}</a>
+</nav>
+
+<div class="d-flex align-items-baseline flex-wrap gap-2 mb-3">
+    <h1 class="h3 mb-0">Pledge plan — {{ purchase.name }}</h1>
+    <span class="badge text-bg-secondary">{{ plan.currency }}</span>
+    {% if plan.vat_rate %}
+    <span class="badge text-bg-secondary">VAT {{ plan.vat_rate|floatformat:"-2" }}%</span>
+    {% endif %}
+    {% if plan.czk_rate %}
+    <span class="badge text-bg-secondary">1 {{ plan.currency }} = {{ plan.czk_rate|floatformat:"-2" }} CZK</span>
+    {% endif %}
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'pledge_plan_edit' plan.pk %}">Edit plan</a>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'pledge_plan_item_add' plan.pk %}">Add item</a>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'pledge_plan_bundle_add' plan.pk %}">Add bundle</a>
+</div>
+
+<div id="pledge-plan-table">
+    {% include "partials/pledge_plan_table.html" %}
+</div>
+{% endblock %}

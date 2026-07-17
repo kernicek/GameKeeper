@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Add game | GameKeeper{% endblock %}
+
+{% block content %}
+{# Add game page (issue #55): one BGG id or URL in, a fully synced game out. #}
+{# Success and already-linked ids both redirect to the game detail; every #}
+{# failure re-renders here with the inline error. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Add game</h1>
+    <a class="small" href="{% url 'collection' %}">back to collection</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">From BoardGameGeek</div>
+            <div class="card-body">
+                {% if error %}
+                <div class="alert alert-danger" role="alert">{{ error }}</div>
+                {% endif %}
+                <form method="post" action="{% url 'game_add' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="f-bgg">BGG id or URL</label>
+                        <input class="form-control" id="f-bgg" name="bgg"
+                               value="{{ value|default:'' }}" required autofocus
+                               placeholder="207830 or https://boardgamegeek.com/boardgame/207830/…">
+                        <div class="form-text">
+                            Name, year, stats and cover are fetched from BGG;
+                            curation starts empty. An id already in the
+                            collection opens its game instead. Or
+                            <a href="{% url 'bgg_import' %}">import your whole
+                            BGG collection</a> at once.
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" type="submit">Add game</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

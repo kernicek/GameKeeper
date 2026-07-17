@@ -1,0 +1,190 @@
+{# GameChooser (DESIGN §10): every control re-filters the grid via htmx; #}
+{# hx-push-url keeps the filtered view bookmarkable. Shared across the owner #}
+{# grid and the read-only shared/group grids (issue #120) — owner_view gates #}
+{# the axes §3 hides from viewers (location, availability). chooser_url is #}
+{# whichever collection route this surface lives at. #}
+{# Issue #107: collapsed on mobile behind a toggle, always open on md+ (the #}
+{# navbar's collapse mechanism — d-md-block wins over .collapse on desktop). #}
+<div class="card mb-4" id="chooser-card">
+    <button class="btn btn-outline-secondary d-md-none m-2" type="button"
+            data-bs-toggle="collapse" data-bs-target="#chooser-body"
+            aria-expanded="false" aria-controls="chooser-body">
+        <i class="bi bi-funnel" aria-hidden="true"></i> Filters
+    </button>
+    <div class="collapse d-md-block" id="chooser-body">
+        <form id="chooser"
+              hx-get="{{ chooser_url }}" hx-target="#chooser-results"
+              hx-trigger="input delay:300ms" hx-push-url="true">
+            <div class="card-body">
+                {# Issue #92: kept in sync by the grid/list toggle buttons' #}
+                {# onclick, so a later filter edit doesn't silently revert #}
+                {# to grid — this form has its own independent hx-get. #}
+                <input type="hidden" name="view" id="f-view" value="{{ filters.view }}">
+                {# Issue #92 follow-up: same onclick-sync idiom, kept by the #}
+                {# list-view column headers. #}
+                <input type="hidden" name="sort" id="f-sort" value="{{ filters.sort }}">
+                {# Issue #20: name search, live like every other chooser control. #}
+                {# Reset rides alongside it rather than owning a whole row. #}
+                <div class="row g-3 mb-1 align-items-center">
+                    <div class="col">
+                        <input type="search" class="form-control" id="f-q" name="q"
+                               placeholder="Search by name…" aria-label="Search by name"
+                               value="{{ filters.q }}">
+                    </div>
+                    <div class="col-auto">
+                        <a class="small" href="{{ reset_url }}">Reset filters</a>
+                    </div>
+                </div>
+                {# Equal-width columns on desktop: every axis grows to fill the #}
+                {# row rather than packing left and leaving dead space (issue #107). #}
+                <div class="row g-3">
+                    <div class="col-6 col-md">
+                        {# Issue #107: "Num players" — the bare "Players" was ambiguous. #}
+                        <label class="form-label" for="f-players">Num players</label>
+                        <input type="number" class="form-control" id="f-players"
+                               name="players" min="1" max="20" placeholder="any"
+                               value="{{ filters.players|default_if_none:'' }}">
+                    </div>
+                    <div class="col-6 col-md">
+                        <label class="form-label" for="f-playtime">Fits (min)</label>
+                        <input type="number" class="form-control" id="f-playtime"
+                               name="playtime" min="5" step="5" placeholder="any"
+                               value="{{ filters.playtime|default_if_none:'' }}">
+                    </div>
+                    <div class="col-6 col-md">
+                        <label class="form-label" for="f-theme">Theme</label>
+                        <select class="form-select" id="f-theme" name="theme">
+                            <option value="">any</option>
+                            {% for tag in theme_tags %}
+                            <option value="{{ tag.pk }}"
+                                    {% if tag.pk in filters.themes %}selected{% endif %}>
+                                {{ tag.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {# Issue #42: family facet — a loose association, never collapsed. #}
+                    <div class="col-6 col-md">
+                        <label class="form-label" for="f-family">Family</label>
+                        <select class="form-select" id="f-family" name="family">
+                            <option value="">any</option>
+                            {% for family in family_choices %}
+                            <option value="{{ family.pk }}"
+                                    {% if family.pk in filters.families %}selected{% endif %}>
+                                {{ family.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% if owner_view %}
+                    {# Location + availability are the owner's shelf/lending state — #}
+                    {# §3 hides them from viewers, so the shared chooser omits them. #}
+                    <div class="col-6 col-md">
+                        <label class="form-label" for="f-location">Location</label>
+                        <select class="form-select" id="f-location" name="location">
+                            <option value="">any</option>
+                            {# Issue #30: unplaced copies, so they can be assigned. #}
+                            <option value="none"
+                                    {% if filters.location == "none" %}selected{% endif %}>
+                                (no location set)
+                            </option>
+                            {% for location in locations %}
+                            <option value="{{ location.pk }}"
+                                    {% if location.pk == filters.location %}selected{% endif %}>
+                                {{ location.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    {# Issue #147: weight is a single-value slider whose threshold #}
+                    {# direction is picked by the paired mode select — "any" (the #}
+                    {# default) leaves the slider's position unused. Auto-width so #}
+                    {# these pack onto the row rather than wrapping to a new line. #}
+                    <div class="col-6 col-md">
+                        <label class="form-label d-flex justify-content-between align-items-center" for="f-weight">
+                            <span>Weight</span>
+                            <select class="form-select form-select-sm w-auto" id="f-weight-mode" name="weight_mode" aria-label="Weight filter direction">
+                                <option value="">any</option>
+                                <option value="max" {% if filters.weight_mode == "max" %}selected{% endif %}>at most</option>
+                                <option value="min" {% if filters.weight_mode == "min" %}selected{% endif %}>at least</option>
+                            </select>
+                        </label>
+                        <input type="range" class="form-range" id="f-weight" name="weight"
+                               min="1" max="5" step="0.5"
+                               value="{{ filters.weight|default:'3' }}">
+                    </div>
+                    {# Issue #63: mechanics are BGG-synced tags (DESIGN §10), #}
+                    {# same Tag model as themes, split by kind. #}
+                    <div class="col-6 col-md">
+                        <label class="form-label" for="f-mechanic">Mechanic</label>
+                        <select class="form-select" id="f-mechanic" name="mechanic">
+                            <option value="">any</option>
+                            {% for tag in mechanic_tags %}
+                            <option value="{{ tag.pk }}"
+                                    {% if tag.pk in filters.mechanics %}selected{% endif %}>
+                                {{ tag.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {# Issue #63: played vs never-played, fed by bgg_numplays #}
+                    {# (already token-free — this axis never waited on BGG). #}
+                    <div class="col-6 col-md">
+                        <label class="form-label" for="f-played">Played</label>
+                        <select class="form-select" id="f-played" name="played">
+                            <option value="">any</option>
+                            <option value="played" {% if filters.played == "played" %}selected{% endif %}>Played</option>
+                            <option value="never" {% if filters.played == "never" %}selected{% endif %}>Never played</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mt-1 align-items-center">
+                    <div class="col-12 col-md">
+                        <span class="form-label me-2">Game type:</span>
+                        {% for value, label in game_type_choices %}
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="game_type"
+                                   id="f-gt-{{ value }}" value="{{ value }}"
+                                   {% if value in filters.game_types %}checked{% endif %}>
+                            <label class="form-check-label" for="f-gt-{{ value }}">{{ label }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="col-12 col-md-auto ms-md-auto">
+                        {% if owner_view %}
+                        {# Issue #107: opt-OUT of the available-only default — a clean #}
+                        {# URL shows available games, this param reveals lent-out ones. #}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="show_unavailable"
+                                   id="f-show-unavailable" value="1"
+                                   {% if not filters.available %}checked{% endif %}>
+                            <label class="form-check-label" for="f-show-unavailable">Show unavailable</label>
+                        </div>
+                        {# Issue #82: opt-in, active copies marked keep_status=WILL_LEAVE. #}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="leaving"
+                                   id="f-leaving" value="1"
+                                   {% if filters.leaving %}checked{% endif %}>
+                            <label class="form-check-label" for="f-leaving">Leaving only</label>
+                        </div>
+                        {% endif %}
+                        {# Issue #107: opt-OUT of the series-collapse default. #}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="show_all_editions"
+                                   id="f-show-all-editions" value="1"
+                                   {% if not filters.collapse %}checked{% endif %}>
+                            <label class="form-check-label" for="f-show-all-editions">Expand series</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="expansions"
+                                   id="f-expansions" value="1"
+                                   {% if filters.expansions %}checked{% endif %}>
+                            <label class="form-check-label" for="f-expansions">Include expansions</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

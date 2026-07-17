@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ purchase.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{% comment %}
+Purchase edit page (issue #136): one unified save for the campaign form and
+every wave (status, dates, address, tracking, wave/product deletion) — see
+forms.py's PurchaseForm/WaveFormSet. Its fields are laid out across wave
+sub-cards below rather than inside one literal <form>...</form> (each wave
+also nests its own "Add item" <form>, and HTML forms can't nest) — instead
+every field carries form="purchase-edit-form" (forms.py's
+PURCHASE_EDIT_FORM_ID) and submits with the empty <form> declared right
+here. "Add wave" and "Add item" stay their own small immediate-POST forms:
+they only ever create a new stub row, so they don't carry the "could lose
+an in-progress edit" risk the unified save exists to fix. Conversion to a
+Copy happens on the detail page, where arrived products grow a "Convert to
+copy" button.
+{% endcomment %}
+<form id="purchase-edit-form" method="post"
+      action="{% url 'purchase_edit' purchase.pk %}">
+    {% csrf_token %}
+    {{ wave_formset.management_form }}
+</form>
+
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Edit — {{ purchase.name }}</h1>
+    <a class="small" href="{% url 'purchase_detail' purchase.pk %}">back to purchase</a>
+</div>
+
+{% if wave_formset.non_form_errors %}
+<div class="alert alert-warning py-2">{{ wave_formset.non_form_errors.0 }}</div>
+{% endif %}
+
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">Campaign</div>
+            <div class="card-body">
+                {% include "partials/purchase_form_fields.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Waves</div>
+    <div class="card-body">
+        {% for wave_form in wave_formset %}
+        {% with wave=wave_form.instance %}
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center flex-wrap gap-2">
+                <span>Wave {{ wave.number }}</span>
+                {% if wave.delivery_type == "digital" %}
+                <span class="badge text-bg-info">digital</span>
+                {% endif %}
+                {% if not wave.products.all %}
+                <div class="form-check ms-auto mb-0">
+                    {{ wave_form.DELETE }}
+                    <label class="form-check-label small"
+                           for="{{ wave_form.DELETE.id_for_label }}">Delete wave</label>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% for hidden in wave_form.hidden_fields %}{{ hidden }}{% endfor %}
+                <div class="row">
+                    <div class="col-sm-3 mb-3">
+                        <label class="form-label" for="{{ wave_form.status.id_for_label }}">Status</label>
+                        {{ wave_form.status }}
+                    </div>
+                    <div class="col-sm-3 mb-3">
+                        <label class="form-label" for="{{ wave_form.delivery_type.id_for_label }}">Delivery</label>
+                        {{ wave_form.delivery_type }}
+                    </div>
+                    <div class="col-sm-2 mb-3">
+                        <label class="form-label" for="{{ wave_form.original_eta.id_for_label }}">Original ETA</label>
+                        {{ wave_form.original_eta }}
+                    </div>
+                    <div class="col-sm-2 mb-3">
+                        <label class="form-label" for="{{ wave_form.expected_arrival.id_for_label }}">Expected</label>
+                        {{ wave_form.expected_arrival }}
+                    </div>
+                    <div class="col-sm-2 mb-3">
+                        <label class="form-label" for="{{ wave_form.arrived_date.id_for_label }}">Arrived</label>
+                        {{ wave_form.arrived_date }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6 mb-3">
+                        <label class="form-label" for="{{ wave_form.address.id_for_label }}">Ships to</label>
+                        {{ wave_form.address }}
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <label class="form-label" for="{{ wave_form.tracking_url.id_for_label }}">Tracking URL</label>
+                        {{ wave_form.tracking_url }}
+                        {% if wave_form.tracking_url.errors %}
+                        <div class="form-text text-danger">{{ wave_form.tracking_url.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead>
+                    <tr><th>Item</th><th>Kind</th><th class="text-end">Delete</th></tr>
+                </thead>
+                <tbody>
+                    {% for product in wave.products.all %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'product_detail' product.pk %}">{{ product.name }}</a>
+                            {% if product.copy_id %}
+                            <span class="badge text-bg-success">in collection</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge text-bg-secondary">{{ product.get_kind_display }}</span></td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary py-0 px-1"
+                               href="{% url 'product_edit' product.pk %}">Edit</a>
+                            {% if not product.copy_id %}
+                            {# A checkbox styled as a button (Bootstrap's btn-check #}
+                            {# pattern) so it still looks like the old Delete #}
+                            {# button, but now submits with the unified form. #}
+                            <input type="checkbox" class="btn-check" autocomplete="off"
+                                   form="purchase-edit-form"
+                                   id="delete-product-{{ product.pk }}"
+                                   name="delete_products" value="{{ product.pk }}">
+                            <label class="btn btn-sm btn-outline-danger py-0 px-1 ms-1"
+                                   for="delete-product-{{ product.pk }}">Delete</label>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        {# copy_add pattern: name + kind here, everything else on #}
+                        {# the edit page this jumps to. Its own small immediate #}
+                        {# action (product_add), separate from the unified Save — #}
+                        {# HTML forms can't nest, so this row's fields associate #}
+                        {# with the empty <form> right after the table instead. #}
+                        <td>
+                            <input class="form-control form-control-sm" type="text"
+                                   form="product-add-{{ wave.pk }}"
+                                   id="w{{ wave.pk }}-item-name" name="name"
+                                   placeholder="New item" maxlength="300" required>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm"
+                                    form="product-add-{{ wave.pk }}"
+                                    id="w{{ wave.pk }}-item-kind" name="kind">
+                                {% for value, label in kind_choices %}
+                                <option value="{{ value }}" {% if value == "other" %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary py-0 px-1" type="submit"
+                                    form="product-add-{{ wave.pk }}">Add item</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+            <form id="product-add-{{ wave.pk }}" method="post"
+                  action="{% url 'product_add' wave.pk %}">
+                {% csrf_token %}
+            </form>
+        </div>
+        {% endwith %}
+        {% endfor %}
+        <form method="post" action="{% url 'wave_add' purchase.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Add wave</button>
+        </form>
+    </div>
+</div>
+
+<button class="btn btn-primary" type="submit" form="purchase-edit-form">Save</button>
+{% endblock %}

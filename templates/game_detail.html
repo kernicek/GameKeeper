@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+{% load admin_links %}
+
+{% block title %}{{ game.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Image-forward detail page (DESIGN §13): cover on the left (capped so #}
+{# BGG originals of any size render tidily) + §10 taxonomy chips. #}
+<div class="row g-4 mb-4">
+    <div class="col-md-4 col-lg-3">
+        {% if game.cover_url %}
+        <img class="hero-cover" src="{{ game.cover_url }}" alt="{{ game.name }}">
+        {% else %}
+        <div class="hero-placeholder">{{ game.name }}</div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-8 col-lg-9">
+        <h1 class="h2 mb-1">
+            {{ game.name }}
+            {% if game.year_published %}
+            <span class="text-secondary fs-5">{{ game.year_published }}</span>
+            {% endif %}
+            <a class="btn btn-sm btn-outline-secondary align-middle ms-2"
+               href="{% url 'game_edit' game.pk %}">Edit</a>
+            {% admin_edit_link game %}
+            {# Issue #44: on-demand BGG refresh for just this game. The result #}
+            {# swaps into #bgg-sync-status below (HTMX + CSRF wired in base). #}
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary align-middle ms-1"
+                    hx-post="{% url 'game_bgg_sync' game.pk %}"
+                    hx-target="#bgg-sync-status" hx-swap="innerHTML"
+                    hx-disabled-elt="this">Sync from BGG</button>
+        </h1>
+
+        {# Issue #51: localized/alternate titles, curated by hand. #}
+        {% if game.alternate_names.all %}
+        <p class="text-secondary mb-1">
+            Also known as
+            {% for alt in game.alternate_names.all %}<em>{{ alt.name }}</em>{% if not forloop.last %}, {% endif %}{% endfor %}
+        </p>
+        {% endif %}
+
+        <div id="bgg-sync-status" class="mb-2">
+            {% include "partials/_bgg_sync_status.html" %}
+        </div>
+
+        <div class="mb-3">
+            {% if game.type == "expansion" %}
+            <span class="badge text-bg-warning">Expansion</span>
+            {% for base in expands %}
+            <a class="small ms-1" href="{% url 'game_detail' base.pk %}">expands {{ base.name }}</a>
+            {% endfor %}
+            {% endif %}
+            {% if game.has_pnp_edition %}<span class="badge text-bg-secondary">Print &amp; play</span>{% endif %}
+            {% if game.series %}
+            <a class="badge text-bg-info text-decoration-none"
+               href="{% url 'series_detail' game.series.pk %}">Series: {{ game.series.name }}</a>
+            {% endif %}
+            {% for family in game.families.all %}
+            <a class="badge text-bg-primary text-decoration-none"
+               href="{% url 'family_detail' family.pk %}">Family: {{ family.name }}</a>
+            {% endfor %}
+            {% if game.bgg_collection_status == "prev_owned" %}
+            <span class="badge text-bg-danger">Previously owned on BGG</span>
+            {% elif game.bgg_collection_status == "wishlist" %}
+            <span class="badge text-bg-info">Wishlist on BGG</span>
+            {% endif %}
+        </div>
+
+        <dl class="row mb-3">
+            <dt class="col-sm-3">Players</dt>
+            <dd class="col-sm-9">
+                {% if players_low or players_high %}
+                    {{ players_low|default:"?" }}–{{ players_high|default:"?" }}
+                    {% if game.type == "base" and expansions %}
+                        <span class="text-secondary small">(with owned expansions)</span>
+                    {% endif %}
+                {% else %}
+                    <span class="text-secondary">awaiting BGG sync</span>
+                {% endif %}
+            </dd>
+            <dt class="col-sm-3">Playtime</dt>
+            <dd class="col-sm-9">
+                {% if game.min_playtime or game.max_playtime %}
+                    {{ game.min_playtime|default:game.max_playtime }}{% if game.max_playtime and game.min_playtime != game.max_playtime %}–{{ game.max_playtime }}{% endif %} min
+                {% else %}
+                    <span class="text-secondary">awaiting BGG sync</span>
+                {% endif %}
+            </dd>
+            <dt class="col-sm-3">Weight</dt>
+            <dd class="col-sm-9">
+                {% if game.weight %}{{ game.weight }} / 5
+                {% else %}<span class="text-secondary" title="Weight comes from BGG's /thing endpoint (DESIGN §8) — this game hasn't picked it up yet.">not yet synced</span>{% endif %}
+            </dd>
+            {% if game.bgg_rating %}
+            <dt class="col-sm-3">BGG rating</dt>
+            <dd class="col-sm-9">{{ game.bgg_rating }}{% if game.bgg_rank %} (rank <a href="https://boardgamegeek.com/browse/boardgame?sort=rank&amp;rankobjecttype=subtype&amp;rankobjectid=1&amp;rank={{ game.bgg_rank }}#{{ game.bgg_rank }}" target="_blank" rel="noopener">{{ game.bgg_rank }}</a>){% endif %}</dd>
+            {% endif %}
+            {% if game.bgg_numplays %}
+            <dt class="col-sm-3">Plays</dt>
+            <dd class="col-sm-9">{{ game.bgg_numplays }}<span class="text-secondary small"> logged on BGG</span></dd>
+            {% endif %}
+        </dl>
+
+        {# §10 taxonomy chips: base marks unioned with owned expansions' (#134). Mechanics stay absent until the BGG token (§15). #}
+        {% if effective_game_types %}
+        <div class="mb-2">
+            {% for egt in effective_game_types %}
+            <span class="badge {% if egt.from_expansion %}text-bg-secondary{% else %}text-bg-primary{% endif %}"{% if egt.from_expansion %} title="From an owned expansion"{% endif %}>
+                {{ egt.display }}{% if egt.qualifier %} ({{ egt.qualifier_display|lower }}){% endif %}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if themes %}
+        <div class="mb-2">
+            {% for gt in themes %}
+            <span class="badge text-bg-info">{% if gt.is_favourite %}★ {% endif %}{{ gt.tag.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="mb-2">
+            {% if game.is_campaign %}<span class="badge text-bg-success">Campaign</span>{% endif %}
+            {% if game.is_legacy %}<span class="badge text-bg-success">Legacy</span>{% endif %}
+            {% if game.has_scenarios %}<span class="badge text-bg-success">Scenarios</span>{% endif %}
+            {% if game.is_one_off %}<span class="badge text-bg-success">One-off</span>{% endif %}
+            {% if game.companion_app %}
+            <span class="badge text-bg-secondary">App {{ game.get_companion_app_display|lower }}</span>
+            {% endif %}
+            {% if game.soundtrack_ambience %}<span class="badge text-bg-secondary">Soundtrack</span>{% endif %}
+            {% if game.soundtrack_timer %}<span class="badge text-bg-secondary">Timer soundtrack</span>{% endif %}
+        </div>
+
+        <dl class="row mb-0">
+            {% if game.language_dependency or game.language_dependency_note %}
+            <dt class="col-sm-3">Language</dt>
+            <dd class="col-sm-9">
+                {{ game.get_language_dependency_display|default:"" }}
+                {% if game.language_dependency_note %}
+                <span class="text-secondary small">{{ game.language_dependency_note }}</span>
+                {% endif %}
+            </dd>
+            {% endif %}
+            {% if game.player_conflict is not None or game.player_conflict_note %}
+            <dt class="col-sm-3">Player conflict</dt>
+            <dd class="col-sm-9">
+                {% if game.player_conflict is not None %}{{ game.player_conflict }} / 3{% endif %}
+                {% if game.player_conflict_note %}
+                <span class="text-secondary small">{{ game.player_conflict_note }}</span>
+                {% endif %}
+            </dd>
+            {% endif %}
+        </dl>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Copies <span class="badge text-bg-info ms-1">{{ copies|length }}</span></span>
+                {# §4 add copy: create the viewer's copy of an edition, then #}
+                {# jump to its edit page. Issue #50: editions already owned #}
+                {# are offered too, flagged "(already owned)" — picking one #}
+                {# routes through the duplicate-copy modal below instead of #}
+                {# being blocked outright. #}
+                <form class="d-flex gap-2 align-items-center" method="post"
+                      id="add-copy-form" action="{% url 'copy_add' game.pk %}">
+                    {% csrf_token %}
+                    {% if editions %}
+                    <select class="form-select form-select-sm w-auto" name="edition"
+                            id="add-copy-edition">
+                        {% for edition in editions %}
+                        <option value="{{ edition.pk }}"
+                                {% if edition.is_default %}selected{% endif %}
+                                {% if edition.pk in owned_edition_pks %}data-owned="1"{% endif %}>
+                            {{ edition.name|default:"default edition" }}{% if edition.pk in owned_edition_pks %} (already owned){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">Add copy</button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/copies_table.html" %}
+            </div>
+            {# Issue #43: the reverse of "Add copy" — a copy physically here #}
+            {# but not owned. Never unique-per-edition, so no disabled state. #}
+            <div class="card-footer">
+                <form class="d-flex gap-2 align-items-center flex-wrap" method="post"
+                      action="{% url 'copy_add_borrowed' game.pk %}">
+                    {% csrf_token %}
+                    {% if editions|length > 1 %}
+                    <select class="form-select form-select-sm w-auto" name="edition">
+                        {% for edition in editions %}
+                        <option value="{{ edition.pk }}" {% if edition.is_default %}selected{% endif %}>
+                            {{ edition.name|default:"default edition" }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                    <input class="form-control form-control-sm w-auto" type="text"
+                           name="counterparty" placeholder="Borrowed from…" required>
+                    <button class="btn btn-sm btn-outline-secondary text-nowrap" type="submit">I'm borrowing this</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5 d-flex flex-column gap-4">
+        <div class="card">
+            <div class="card-header">Links</div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    {% for link in game.bgg_links.all %}
+                    <li>
+                        <a href="{{ link.url }}">BGG {{ link.bgg_id }}</a>
+                        {% if link.is_primary %}<span class="badge text-bg-secondary">primary</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                    {% for link in game.external_links.all %}
+                    <li><a href="{{ link.resolved_url }}">{{ link }}</a></li>
+                    {% endfor %}
+                    {% for impl in game.digital_implementations.all %}
+                    <li>
+                        {% if impl.url %}
+                        <a href="{{ impl.url }}">{{ impl.get_platform_display }}</a>
+                        {% else %}
+                        {{ impl.get_platform_display }}
+                        {% endif %}
+                        <span class="text-secondary small">digital</span>
+                        {% if impl.notes %}<span class="text-secondary small">{{ impl.notes }}</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                    {% if not game.bgg_links.all and not game.external_links.all and not game.digital_implementations.all %}
+                    <li class="text-secondary">No links.</li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+
+        {# Issue #53: editions live here — each row links to its in-app edit #}
+        {# page, the header button to the create page. Both come back here. #}
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Editions <span class="badge text-bg-info ms-1">{{ editions|length }}</span></span>
+                <a class="btn btn-sm btn-outline-primary text-nowrap"
+                   href="{% url 'edition_add' game.pk %}">Add edition</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <tbody>
+                        {% for edition in editions %}
+                        <tr>
+                            <td class="ps-3">
+                                {{ edition.name|default:"default edition" }}
+                                {% if edition.is_default %}<span class="badge text-bg-secondary">default</span>{% endif %}
+                                {% if edition.is_pnp %}<span class="badge text-bg-secondary">Print &amp; play</span>{% endif %}
+                            </td>
+                            <td class="text-secondary small">
+                                {{ edition.get_components_language_display }}{% if edition.components_language and edition.size_category %} &middot; {% endif %}{{ edition.get_size_category_display }}
+                            </td>
+                            <td class="text-end pe-3">
+                                <a class="btn btn-sm btn-outline-secondary py-0 px-1" href="{% url 'edition_edit' edition.pk %}">Edit</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td class="ps-3 text-secondary">No editions yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+
+        {# Issue #17: a collapsed, read-only cut of the §5 sleeve worklist for #}
+        {# the viewer's own copies of this game — card sizes + per-size sleeve #}
+        {# status. Same shared table as the worklist; editing lives on the copy #}
+        {# edit page. Hidden entirely when the viewer has no sleeve rows. #}
+        {% if sleeve_copies %}
+        <div class="card">
+            <div class="card-header p-0">
+                <button class="btn btn-link text-body text-decoration-none w-100 d-flex justify-content-between align-items-center px-3 py-2"
+                        type="button" data-bs-toggle="collapse" data-bs-target="#sleeve-card"
+                        aria-expanded="false" aria-controls="sleeve-card">
+                    <span>Sleeves</span>
+                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="collapse" id="sleeve-card">
+                <div class="card-body p-0">
+                    {% for entry in sleeve_copies %}
+                    {% if sleeve_copies|length > 1 %}
+                    <div class="small text-secondary px-3 pt-2">{{ entry.edition.name|default:"default edition" }}</div>
+                    {% endif %}
+                    {% include "partials/sleeve_table.html" with rows=entry.rows editable=False show_game=False %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Issue #60 (§7): documents — rulebooks, PnP, references. Each holds #}
+        {# an external URL and/or an uploaded file. Pinned (primary) docs sort #}
+        {# to the top via Meta.ordering and carry a ★. Replaces the old #}
+        {# Google-Drive-folders workflow. #}
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Documents <span class="badge text-bg-info ms-1">{{ documents|length }}</span></span>
+                <a class="btn btn-sm btn-outline-primary text-nowrap"
+                   href="{% url 'document_add' game.pk %}">Add document</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <tbody>
+                        {% for document in documents %}
+                        <tr>
+                            <td class="ps-3">
+                                {% if document.is_primary %}<span title="Primary">★</span> {% endif %}
+                                <a href="{{ document.display_url }}">{{ document }}</a>
+                            </td>
+                            <td class="text-secondary small">{{ document.get_doc_type_display }}</td>
+                            <td class="text-end pe-3 text-nowrap">
+                                {# Issue #97: pin + delete moved onto the edit page. #}
+                                <a class="btn btn-sm btn-outline-secondary py-0 px-1"
+                                   href="{% url 'document_edit' document.pk %}">Edit</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {# Issue #97: owned expansions' docs, read-only, badged with #}
+                        {# the source expansion (managed on the expansion's page). #}
+                        {% for group in expansion_documents %}
+                        {% for document in group.documents %}
+                        <tr>
+                            <td class="ps-3">
+                                {% if document.is_primary %}<span title="Primary">★</span> {% endif %}
+                                <a href="{{ document.display_url }}">{{ document }}</a>
+                                <a class="badge text-bg-light text-decoration-none ms-1"
+                                   href="{% url 'game_detail' group.expansion.pk %}">{{ group.expansion.short_name }}</a>
+                            </td>
+                            <td class="text-secondary small">{{ document.get_doc_type_display }}</td>
+                            <td class="text-end pe-3 text-nowrap"></td>
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+                        {% if not documents and not expansion_documents %}
+                        <tr><td class="ps-3 text-secondary">No documents yet.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# §6 backlink: the viewer's purchases that contain this game. Rendered #}
+    {# only when there are any — owner-scoped, so other members see nothing. #}
+    {% if purchase_rows %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                Purchases <span class="badge text-bg-info ms-1">{{ purchase_rows|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/purchases_table.html" %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# Issue #16 + #47: this game's expansions, each linking to its own detail #}
+    {# page. Owned ones (an active Copy exists) list their owners; known-but- #}
+    {# unowned ones follow in muted italic as a what-could-be-added overview. #}
+    {% if expansion_rows %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                Expansions <span class="badge text-bg-info ms-1">{{ owned_expansion_count }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <tbody>
+                        {% for row in expansion_rows %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'game_detail' row.game.pk %}"{% if not row.owned %} class="fst-italic text-secondary"{% endif %}>{{ row.game.short_name }}</a>
+                                {% if row.override %}
+                                <span class="text-secondary small">{{ row.override }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if row.owned %}
+                                {% for owner in row.owners %}
+                                <span class="badge text-bg-secondary">{{ owner }}</span>
+                                {% endfor %}
+                                {% else %}
+                                <span class="text-secondary small fst-italic">not owned</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# Issue #65 (§8): the read-only plays log — most recent for this game, #}
+    {# with players/scores/winners as BGG has them (the top <dl> keeps the #}
+    {# raw numplays COUNT, which also includes plays posted without detail). #}
+    {# The full history lives on the /plays/?game= feed. #}
+    {% if recent_plays %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Plays <span class="badge text-bg-info ms-1">{{ plays_count }}</span></span>
+                {% if plays_count > recent_plays|length %}
+                <a class="small" href="{% url 'plays' %}?game={{ game.pk }}">See all {{ plays_count }} plays</a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% include "partials/plays_table.html" with plays=recent_plays %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="duplicate-copy-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add a duplicate copy?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You already have a copy of this edition (active or archived). Add another anyway?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-duplicate-copy">Add anyway</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Duplicate-copy confirm (issue #50): unique_copy_per_owner_edition was
+    // dropped, so picking an already-owned edition here now warns instead
+    // of the old 400 — same ride-along pattern as edition_edit's
+    // default-switch-modal. The view 400s unconfirmed duplicates as the
+    // backstop.
+    const addCopyForm = document.getElementById("add-copy-form");
+    const addCopyEdition = document.getElementById("add-copy-edition");
+    const duplicateModal = new bootstrap.Modal(
+        document.getElementById("duplicate-copy-modal"));
+    let duplicateConfirmed = false;
+    addCopyForm.addEventListener("submit", (event) => {
+        const selected = addCopyEdition && addCopyEdition.selectedOptions[0];
+        if (selected && selected.dataset.owned && !duplicateConfirmed) {
+            event.preventDefault();
+            duplicateModal.show();
+        }
+    });
+    document.getElementById("confirm-duplicate-copy").addEventListener("click", () => {
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = "confirm_duplicate_copy";
+        hidden.value = "1";
+        addCopyForm.appendChild(hidden);
+        duplicateConfirmed = true;
+        duplicateModal.hide();
+        addCopyForm.requestSubmit();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.py[cod]
+.git/
+.idea/
+.vscode/
+.env
+db.sqlite3*
+media/
+DESIGN.md

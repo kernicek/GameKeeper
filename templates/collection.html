@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Collection | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Collection</h1>
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'game_add' %}">Add game</a></li>
+            <li><a class="dropdown-item" href="{% url 'bgg_import' %}">Import from BGG</a></li>
+            <li><a class="dropdown-item" href="{% url 'series_add' %}">New series</a></li>
+            <li><a class="dropdown-item" href="{% url 'family_add' %}">New family</a></li>
+        </ul>
+    </div>
+</div>
+
+{% include "partials/chooser.html" %}
+
+<div id="chooser-results">
+    {% include "partials/game_results.html" %}
+</div>
+
+{% include "partials/series_tile_script.html" %}
+{% endblock %}

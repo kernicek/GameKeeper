@@ -1,0 +1,81 @@
+{# Issue #17: the one sleeve table shared by the §5 worklist (editable, with a #}
+{# Game column), the game-detail card (read-only) and the copy-edit card #}
+{# (editable). Params: rows, editable, show_game, and for editable mode #}
+{# hx_target / hx_include / scope / status_choices. Edit the row structure #}
+{# here and it updates everywhere. #}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            {% if show_game %}<th>Game</th>{% endif %}
+            <th>Card size</th>
+            <th class="text-end">Cards</th>
+            <th>Status</th>
+            <th>Sleeved with</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            {% if show_game %}
+            <td>
+                <a href="{% url 'game_detail' row.copy.edition.game.pk %}">
+                    {{ row.copy.edition.game.name }}
+                </a>
+                {% if row.copy.edition.name %}
+                    <span class="text-secondary small">{{ row.copy.edition.name }}</span>
+                {% endif %}
+            </td>
+            {% endif %}
+            <td>{{ row.card_size }}</td>
+            {# A status row without a matching edition requirement has no card #}
+            {# count to show. #}
+            <td class="text-end">{{ row.count|default_if_none:"?" }}</td>
+            <td>
+                {% if editable %}
+                {# In-place §5 editing: each select posts just itself (plus the #}
+                {# worklist's hx-include'd filters); the table re-renders. #}
+                <select name="status"
+                        class="form-select form-select-sm sleeve-status-select"
+                        aria-label="Sleeve status for {{ row.copy.edition.game.name }} {{ row.card_size }}"
+                        hx-post="{% url 'sleeve_status_edit' row.copy.pk row.card_size.pk %}"
+                        hx-target="{{ hx_target }}"{% if hx_include %} hx-include="{{ hx_include }}"{% endif %}{% if scope %} hx-vals='{"scope": "{{ scope }}"}'{% endif %}>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}"
+                            {% if value == row.status %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                {{ row.status_label }}
+                {% endif %}
+            </td>
+            <td>
+                {% if editable %}
+                    {% if row.products %}
+                    <select name="product"
+                            class="form-select form-select-sm sleeve-product-select"
+                            aria-label="Sleeve product used for {{ row.copy.edition.game.name }} {{ row.card_size }}"
+                            hx-post="{% url 'sleeve_status_edit' row.copy.pk row.card_size.pk %}"
+                            hx-target="{{ hx_target }}"{% if hx_include %} hx-include="{{ hx_include }}"{% endif %}{% if scope %} hx-vals='{"scope": "{{ scope }}"}'{% endif %}>
+                        <option value="">—</option>
+                        {% for product in row.products %}
+                        <option value="{{ product.pk }}"
+                                {% if product.pk == row.product_id %}selected{% endif %}>
+                            {{ product.brand }} {{ product.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <span class="text-secondary">no product for this size</span>
+                    {% endif %}
+                {% else %}
+                    {% if row.product %}{{ row.product.brand }} {{ row.product.name }}{% else %}<span class="text-secondary">—</span>{% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>

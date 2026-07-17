@@ -1,0 +1,61 @@
+{# Issue #21: series tiles expand in place. Delegated document listeners #}
+{# (kept OUTSIDE #chooser-results by the including page, so htmx grid swaps #}
+{# never lose or duplicate them — open state simply resets with the swap). #}
+{# Clicks on the overlay's anchors navigate; anywhere else toggles, outside #}
+{# clicks close. Shared across the owner grid and the read-only shared grids #}
+{# (issue #120); on those a tile has no series page, so navigation no-ops. #}
+<script>
+    // Issue #57: the tile is not an <a>, so middle-click and ctrl/cmd+click
+    // get no native new-tab behavior — open the series page ourselves. Shared
+    // grids have no series page (empty data-series-url), so this no-ops there.
+    function openSeriesTile(event) {
+        if (event.target.closest("a")) return false;
+        const tile = event.target.closest("[data-series-tile]");
+        if (!tile || !tile.dataset.seriesUrl) return false;
+        window.open(tile.dataset.seriesUrl, "_blank", "noopener");
+        return true;
+    }
+    function toggleSeriesTile(event) {
+        if (event.ctrlKey || event.metaKey) {
+            openSeriesTile(event);
+            return;
+        }
+        if (event.target.closest("a")) return;
+        const tile = event.target.closest("[data-series-tile]");
+        document.querySelectorAll("[data-series-tile].open").forEach(function (other) {
+            if (other !== tile) other.classList.remove("open");
+        });
+        if (tile) tile.classList.toggle("open");
+    }
+    document.addEventListener("click", toggleSeriesTile);
+    document.addEventListener("auxclick", function (event) {
+        if (event.button === 1) openSeriesTile(event);
+    });
+    document.addEventListener("mousedown", function (event) {
+        // Anchors don't start autoscroll on middle-press; match that.
+        if (event.button === 1 && !event.target.closest("a")
+            && event.target.closest("[data-series-tile]")) {
+            event.preventDefault();
+        }
+    });
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && event.target.matches("[data-series-tile]")) {
+            toggleSeriesTile(event);
+        }
+    });
+
+    // Issue #15: the count badge rises above the caption on hover. CSS
+    // can't know how many lines the caption wraps to, so measure it as
+    // the pointer (or focus) enters the tile and hand the distance to
+    // app.css via --count-rise. Delegated like the handlers above, so
+    // htmx grid swaps need no re-init. 28px = the caption's 1.75rem
+    // gradient padding: the badge clears the text, not the fade.
+    function setCountRise(event) {
+        const tile = event.target.closest("[data-series-tile]");
+        if (!tile || tile.contains(event.relatedTarget)) return;
+        const label = tile.querySelector(".cover-label");
+        tile.style.setProperty("--count-rise", (label.offsetHeight - 28) + "px");
+    }
+    document.addEventListener("mouseover", setCountRise);
+    document.addEventListener("focusin", setCountRise);
+</script>

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Import from BGG | GameKeeper{% endblock %}
+
+{% block content %}
+{# Bulk collection import, step 1 of 3 (issue #81): pick the BGG statuses #}
+{# to pull; submitting saves the profile bgg_username and fetches a preview. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Import from BGG</h1>
+    <a class="small" href="{% url 'collection' %}">back to collection</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Your BGG collection</div>
+            <div class="card-body">
+                {% if error %}
+                <div class="alert alert-danger" role="alert">{{ error }}</div>
+                {% endif %}
+                <form method="post" action="{% url 'bgg_import' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="step" value="preview">
+                    <div class="mb-3">
+                        <label class="form-label" for="f-bgg-username">BGG username</label>
+                        <input class="form-control" id="f-bgg-username" name="bgg_username"
+                               value="{{ bgg_username }}" required>
+                        <div class="form-text">
+                            Saved to your profile. The token-less BGG session can
+                            only read the synced account's own collection.
+                        </div>
+                    </div>
+                    <fieldset class="mb-3">
+                        <legend class="form-label fs-6">Collection statuses to include</legend>
+                        {% for param, label in status_choices %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="status"
+                                   id="f-status-{{ param }}"
+                                   value="{{ param }}"{% if param in selected %} checked{% endif %}>
+                            <label class="form-check-label" for="f-status-{{ param }}">{{ label }}</label>
+                        </div>
+                        {% endfor %}
+                        <div class="form-text">
+                            Owned and For trade become a game + copy, Previously
+                            owned an archived copy; preorders and wishlist-type
+                            statuses add the game without a copy.
+                        </div>
+                    </fieldset>
+                    <button class="btn btn-primary" type="submit">Preview import</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

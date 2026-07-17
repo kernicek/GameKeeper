@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Campaigns ending soon | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Campaigns ending soon</h1>
+    <a class="small" href="{% url 'dashboard' %}">Back to dashboard</a>
+</div>
+
+{# Full, uncapped list (issue #83) — shares the table partial (incl. the #}
+{# undated-campaigns footnote) with the dashboard card. #}
+<div class="card">
+    <div class="card-body p-0">
+        {% include "partials/ending_soon_table.html" %}
+    </div>
+</div>
+{% endblock %}

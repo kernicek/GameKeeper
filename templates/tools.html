@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Tools | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-1">
+    <h1 class="h3 mb-0">Tools</h1>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin:index' %}">
+        <i class="bi bi-gear me-1"></i>Django admin
+    </a>
+</div>
+<p class="text-secondary">
+    Run the bulk maintenance jobs that used to need shell access. Each runs in
+    the background — leave this page open and the result appears below when it
+    finishes.
+</p>
+
+<div id="tools-status">
+    {% include "partials/_tools_status.html" %}
+</div>
+
+{% comment %}
+Impersonation picker (issue #108). Only rendered for superusers — the
+impersonatable_users context processor returns an empty list for everyone
+else and while already impersonating, so this whole block collapses away.
+Superusers are excluded as targets, so no pick can escalate privilege.
+{% endcomment %}
+{% if impersonatable_users %}
+<div class="card mt-4">
+    <div class="card-body">
+        <h2 class="h5 card-title">Impersonate a user</h2>
+        <p class="text-secondary small mb-3">
+            View the app as another member to debug their collection. A banner
+            stays visible while impersonating; use “Exit impersonation” to return.
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+            {% for u in impersonatable_users %}
+            <a class="btn btn-outline-primary btn-sm"
+               href="{% url 'impersonate-start' u.id %}">{{ u.username }}</a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

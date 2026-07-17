@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Pledge plan bundle | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">{% if bundle %}Edit bundle{% else %}Add bundle{% endif %} — {{ purchase.name }}</h1>
+    <a class="small" href="{% url 'pledge_plan_detail' plan.pk %}">back to plan</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Bundle</div>
+            <div class="card-body">
+                <form method="post"
+                      action="{% if bundle %}{% url 'pledge_plan_bundle_edit' bundle.pk %}{% else %}{% url 'pledge_plan_bundle_add' plan.pk %}{% endif %}">
+                    {% csrf_token %}
+                    {% if bundle_form.non_field_errors %}
+                    <div class="alert alert-warning py-2">{{ bundle_form.non_field_errors.0 }}</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ bundle_form.name.id_for_label }}">Name</label>
+                        {{ bundle_form.name }}
+                        {% if bundle_form.name.errors %}
+                        <div class="form-text text-danger">{{ bundle_form.name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ bundle_form.price.id_for_label }}">Pledge price</label>
+                            {{ bundle_form.price }}
+                            {% if bundle_form.price.errors %}
+                            <div class="form-text text-danger">{{ bundle_form.price.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-text">
+                                The actual advertised cost of this pledge level — usually
+                                less than the sum of its items' individual prices.
+                            </div>
+                        </div>
+                        <div class="col-sm-6 mb-3">
+                            <label class="form-label" for="{{ bundle_form.shipping_cost.id_for_label }}">Shipping estimate</label>
+                            {{ bundle_form.shipping_cost }}
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">
+                        Which items this bundle covers is set from the plan page.
+                    </p>
+                    <button class="btn btn-primary" type="submit">Save</button>
+                </form>
+                {% if bundle %}
+                <form class="mt-3" method="post"
+                      action="{% url 'pledge_plan_bundle_delete' bundle.pk %}"
+                      onsubmit="return confirm('Delete {{ bundle.name|escapejs }}?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete bundle</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

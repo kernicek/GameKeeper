@@ -1,0 +1,21 @@
+<p class="text-secondary mb-3">
+    Showing {{ sleeve_row_count }} of {{ sleeve_total_count }} card slot{{ sleeve_total_count|pluralize }}
+</p>
+
+{% if sleeve_rows %}
+<div class="card">
+    <div class="card-body p-0">
+        {% include "partials/sleeve_table.html" with rows=sleeve_rows editable=True show_game=True hx_target="#status-results" hx_include="#status-filters" status_choices=sleeve_status_choices %}
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">
+    {% if sleeve_total_count %}
+        No card slots match these filters.
+    {% else %}
+        Nothing to sleeve — no active copy has sleeve requirements yet.
+        Requirements are per edition (card size → count) and are added on
+        the edition's edit page (or by the sleeves import).
+    {% endif %}
+</div>
+{% endif %}

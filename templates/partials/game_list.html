@@ -1,0 +1,76 @@
+{% if tiles %}
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    {# Issue #92 follow-up: every header is a sort link — #}
+                    {# hx-include pulls in the rest of #chooser's filters, #}
+                    {# hx-vals overrides just "sort" for this click, and the #}
+                    {# onclick keeps #f-sort in sync for later requests. #}
+                    {% for col in sort_columns %}
+                    <th>
+                        <a href="#" class="text-reset text-decoration-none d-inline-flex align-items-center gap-1"
+                           hx-get="{{ chooser_url }}" hx-target="#chooser-results" hx-include="#chooser"
+                           hx-push-url="true" hx-vals='{"sort": "{{ col.next_sort }}"}'
+                           onclick="document.getElementById('f-sort').value = '{{ col.next_sort }}'">
+                            {{ col.label }}
+                            {% if col.direction == "asc" %}
+                            <i class="bi bi-caret-up-fill" aria-hidden="true"></i>
+                            {% elif col.direction == "desc" %}
+                            <i class="bi bi-caret-down-fill" aria-hidden="true"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for tile in tiles %}
+                <tr>
+                    {% if tile.series %}
+                    <td>
+                        {% if tile.series_url %}
+                        <a href="{{ tile.series_url }}">{{ tile.series.name }}</a>
+                        {% else %}
+                        {{ tile.series.name }}
+                        {% endif %}
+                        {# Same wording as the grid's corner badge (issue #21). #}
+                        <span class="badge text-bg-secondary"
+                              title="{{ tile.members|length }} game{{ tile.members|length|pluralize }} in series">
+                            {{ tile.members|length }}
+                        </span>
+                    </td>
+                    {% else %}
+                    <td><a href="{{ tile.detail_url }}">{{ tile.game.name }}</a></td>
+                    {% endif %}
+                    <td>{{ tile.stat_game.get_type_display }}</td>
+                    <td>{{ tile.stat_game.year_published|default:"—" }}</td>
+                    <td>
+                        {% if tile.players_low or tile.players_high %}
+                        {{ tile.players_low|default:"?" }}–{{ tile.players_high|default:"?" }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if tile.stat_game.min_playtime or tile.stat_game.max_playtime %}
+                        {{ tile.stat_game.min_playtime|default:tile.stat_game.max_playtime }}{% if tile.stat_game.max_playtime and tile.stat_game.min_playtime != tile.stat_game.max_playtime %}–{{ tile.stat_game.max_playtime }}{% endif %} min
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{% if tile.stat_game.weight %}{{ tile.stat_game.weight }} / 5{% else %}—{% endif %}</td>
+                    <td>{{ tile.stat_game.bgg_rank|default:"—" }}</td>
+                    {% if owner_view %}
+                    <td>{{ tile.location_label }}</td>
+                    <td>{{ tile.keep_label }}</td>
+                    <td>{{ tile.copy_count }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">No games match these filters.</div>
+{% endif %}

@@ -1,0 +1,246 @@
+{# DESIGN §3 sharing controls (owner-only): visibility tier, tier-2 grants #}
+{# and the tier-4 anonymous link. Swapped whole into #sharing-settings. #}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Who can see the collection</h2>
+        <p class="text-secondary small">
+            Members always see their own group. Logged-in visitors browse
+            <a href="{{ viewer_url }}">{{ viewer_url }}</a> — a read-only view
+            without personal signals (excitement, keep-status, locations,
+            purchases).
+        </p>
+        <form hx-post="{% url 'group_settings_visibility' group.slug %}"
+              hx-target="#sharing-settings" hx-trigger="change">
+            {% for value, label in visibility_choices %}
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="visibility"
+                       id="vis-{{ value }}" value="{{ value }}"
+                       {% if group.visibility == value %}checked{% endif %}>
+                <label class="form-check-label" for="vis-{{ value }}">
+                    {{ label }}
+                </label>
+            </div>
+            {% endfor %}
+        </form>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Read-only grants</h2>
+        {% if group.visibility != "shared" %}
+        <p class="small text-warning mb-2">
+            Grants only take effect while visibility is
+            "Shared (explicit grants)"{% if grants %} — the ones below are
+            currently inert{% endif %}.
+        </p>
+        {% endif %}
+
+        {% if grants %}
+        <div class="table-responsive mb-3">
+        <table class="table table-sm align-middle mb-3">
+            <tbody>
+                {% for grant in grants %}
+                <tr>
+                    <td>
+                        {% if grant.grantee_user %}
+                            {{ grant.grantee_user.username }}
+                        {% else %}
+                            group "{{ grant.grantee_group.name }}"
+                        {% endif %}
+                    </td>
+                    <td class="text-secondary small">
+                        since {{ grant.created_at|date:"Y-m-d" }}
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-danger"
+                                hx-post="{% url 'group_settings_grant_delete' group.slug grant.pk %}"
+                                hx-target="#sharing-settings"
+                                hx-confirm="Revoke this grant?">
+                            Revoke
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="text-secondary small mb-3">No grants yet.</p>
+        {% endif %}
+
+        {% if grant_error %}
+        <div class="alert alert-warning py-2">{{ grant_error }}</div>
+        {% endif %}
+        <form class="row g-2 align-items-end"
+              hx-post="{% url 'group_settings_grant_add' group.slug %}"
+              hx-target="#sharing-settings">
+            <div class="col-auto">
+                <label class="form-label small" for="grantee-type">Grant to</label>
+                <select class="form-select form-select-sm" id="grantee-type"
+                        name="grantee_type">
+                    <option value="user">a user (username)</option>
+                    <option value="group">a group (slug)</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small" for="grantee-name">Who</label>
+                <input class="form-control form-control-sm" id="grantee-name"
+                       name="grantee" placeholder="username or group slug">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary" type="submit">Add grant</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Invite members</h2>
+        <p class="text-secondary small">
+            Invite an existing user to join this household. Once they accept,
+            they become a Member here and their own solo group is closed.
+        </p>
+
+        {% if invites %}
+        <div class="table-responsive mb-3">
+        <table class="table table-sm align-middle mb-3">
+            <tbody>
+                {% for invite in invites %}
+                <tr>
+                    <td>{{ invite.invited_user.username }}</td>
+                    <td class="text-secondary small">
+                        invited {{ invite.created_at|date:"Y-m-d" }}
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-danger"
+                                hx-post="{% url 'group_settings_invite_delete' group.slug invite.pk %}"
+                                hx-target="#sharing-settings"
+                                hx-confirm="Revoke this invite?">
+                            Revoke
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="text-secondary small mb-3">No pending invites.</p>
+        {% endif %}
+
+        {% if invite_error %}
+        <div class="alert alert-warning py-2">{{ invite_error }}</div>
+        {% endif %}
+        <form class="row g-2 align-items-end"
+              hx-post="{% url 'group_settings_invite_add' group.slug %}"
+              hx-target="#sharing-settings">
+            <div class="col-auto">
+                <label class="form-label small" for="invitee-name">Username</label>
+                <input class="form-control form-control-sm" id="invitee-name"
+                       name="invitee" placeholder="username">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary" type="submit">Send invite</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h2 class="h5">Anonymous share link</h2>
+        <p class="text-secondary small">
+            An unguessable URL for people without an account — same read-only
+            view as above. Works regardless of the visibility tier; revoking
+            invalidates the URL for everyone who has it.
+        </p>
+        {% if share_url %}
+        <div class="d-flex gap-2 align-items-center">
+            <input class="form-control form-control-sm" readonly
+                   value="{{ share_url }}" aria-label="Anonymous share URL"
+                   onfocus="this.select()">
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0 js-copy-link"
+                    data-copy-value="{{ share_url }}"
+                    data-bs-toggle="tooltip" data-bs-trigger="manual" data-bs-title="Copied!"
+                    aria-label="Copy anonymous share URL">
+                <i class="bi bi-clipboard"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger flex-shrink-0"
+                    name="action" value="revoke"
+                    hx-post="{% url 'group_settings_share_link' group.slug %}"
+                    hx-target="#sharing-settings"
+                    hx-confirm="Revoke the link? Everyone who has the URL loses access.">
+                Revoke link
+            </button>
+        </div>
+        {% else %}
+        <button class="btn btn-sm btn-primary" name="action" value="enable"
+                hx-post="{% url 'group_settings_share_link' group.slug %}"
+                hx-target="#sharing-settings">
+            Create share link
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h2 class="h5">Per-location share links</h2>
+        <p class="text-secondary small">
+            Share just the games at one location instead of the whole
+            collection — e.g. show someone only what you have at home or at the office.
+        </p>
+        {% if location_shares %}
+        <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <tbody>
+                {% for entry in location_shares %}
+                <tr>
+                    <td>{{ entry.location.name }}</td>
+                    <td>
+                        {% if entry.share_url %}
+                        <div class="d-flex gap-2 align-items-center">
+                            <input class="form-control form-control-sm" readonly
+                                   value="{{ entry.share_url }}"
+                                   aria-label="Share URL for {{ entry.location.name }}"
+                                   onfocus="this.select()">
+                            <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0 js-copy-link"
+                                    data-copy-value="{{ entry.share_url }}"
+                                    data-bs-toggle="tooltip" data-bs-trigger="manual" data-bs-title="Copied!"
+                                    aria-label="Copy share URL for {{ entry.location.name }}">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if entry.share_url %}
+                        <button class="btn btn-sm btn-outline-danger flex-shrink-0"
+                                name="action" value="revoke"
+                                hx-post="{% url 'group_settings_location_share_link' group.slug entry.location.pk %}"
+                                hx-target="#sharing-settings"
+                                hx-confirm="Revoke the link? Everyone who has the URL loses access.">
+                            Revoke link
+                        </button>
+                        {% else %}
+                        <button class="btn btn-sm btn-primary flex-shrink-0"
+                                name="action" value="enable"
+                                hx-post="{% url 'group_settings_location_share_link' group.slug entry.location.pk %}"
+                                hx-target="#sharing-settings">
+                            Create share link
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="text-secondary small mb-0">No locations yet.</p>
+        {% endif %}
+    </div>
+</div>

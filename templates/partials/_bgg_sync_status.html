@@ -1,0 +1,44 @@
+{# Per-game "Sync from BGG" result (issue #44). Rendered on the detail page #}
+{# as the initial state (just last_synced_at) and swapped in after each sync. #}
+{# No messages framework in this project, so the outcome shows inline here — #}
+{# same convention as cover_editor.html's cover_error. #}
+{% if sync %}
+    {% if sync.error %}
+    <div class="text-danger small">{{ sync.error }}</div>
+    {% elif sync.no_primary_link %}
+    <div class="text-warning-emphasis small">
+        No primary BGG link on this game — nothing to sync. Add one in the admin first.
+    </div>
+    {% elif sync.not_in_collection and not sync.changed %}
+    <div class="text-warning-emphasis small">
+        Not found in your BGG collection — nothing to update.
+    </div>
+    {% else %}
+    <div class="text-success small">
+        {% if sync.changed_labels %}
+        &check; Synced — updated {{ sync.changed_labels|join:", " }}.
+        {% else %}
+        &check; Already up to date.
+        {% endif %}
+        {% if sync.changed %}
+        <a href="{% url 'game_detail' game.pk %}">Reload to see the new values.</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% if sync.links_note %}
+    <div class="text-secondary small">{{ sync.links_note }}</div>
+    {% endif %}
+{% endif %}
+{% if game.last_synced_at %}
+<div class="text-secondary small">Last synced {{ game.last_synced_at|date:"j M Y, H:i" }}.</div>
+{% else %}
+<div class="text-secondary small">Never synced from BGG.</div>
+{% endif %}
+{% if push_pending %}
+{# Issue #117: a status change was pushed and hasn't been confirmed by a #}
+{# read sync yet — BGG's export may simply be lagging. #}
+<div class="text-secondary small">
+    BGG push pending confirmation —
+    {% if game.bgg_status_pushed %}{{ game.get_bgg_status_pushed_display }}{% else %}removed{% endif %}.
+</div>
+{% endif %}

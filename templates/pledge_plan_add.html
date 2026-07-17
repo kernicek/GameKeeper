@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{% if plan %}Edit pledge plan{% else %}Start pledge plan{% endif %} | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">
+        {% if plan %}Edit pledge plan{% else %}Start a pledge plan{% endif %} — {{ purchase.name }}
+    </h1>
+    {% if plan %}
+    <a class="small" href="{% url 'pledge_plan_detail' plan.pk %}">back to plan</a>
+    {% else %}
+    <a class="small" href="{% url 'purchase_detail' purchase.pk %}">back to {{ purchase.name }}</a>
+    {% endif %}
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Plan currency</div>
+            <div class="card-body">
+                <form method="post"
+                      action="{% if plan %}{% url 'pledge_plan_edit' plan.pk %}{% else %}{% url 'pledge_plan_add' purchase.pk %}{% endif %}">
+                    {% csrf_token %}
+                    {% if plan_form.non_field_errors %}
+                    <div class="alert alert-warning py-2">{{ plan_form.non_field_errors.0 }}</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ plan_form.currency.id_for_label }}">Currency</label>
+                        {{ plan_form.currency }}
+                        {% if plan_form.currency.errors %}
+                        <div class="form-text text-danger">{{ plan_form.currency.errors.0 }}</div>
+                        {% endif %}
+                        <div class="form-text">
+                            The single currency this campaign prices items in, e.g. EUR or USD.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ plan_form.vat_rate.id_for_label }}">VAT % (optional)</label>
+                        <div class="input-group">
+                            {{ plan_form.vat_rate }}
+                            <span class="input-group-text">%</span>
+                        </div>
+                        <div class="form-text">
+                            Import VAT applied to each bundle's price+shipping, e.g. 21
+                            for 21%. Leave blank if prices already include VAT.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ plan_form.czk_rate.id_for_label }}">CZK rate (optional)</label>
+                        {{ plan_form.czk_rate }}
+                        <div class="form-text">
+                            Manual conversion rate to CZK — for display only, never used in totals.
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" type="submit">
+                        {% if plan %}Save{% else %}Start planning{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

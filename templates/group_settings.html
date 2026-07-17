@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Sharing — {{ group.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# DESIGN §3 owner-facing sharing settings: every control posts back and #}
+{# re-renders the #sharing-settings block via htmx. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">Sharing — {{ group.name }}</h1>
+    <a class="small" href="{% url 'group_collection' group.slug %}">
+        Open the viewer page
+    </a>
+</div>
+
+<div id="sharing-settings">
+    {% include "partials/sharing_settings.html" %}
+</div>
+{% endblock %}

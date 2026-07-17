@@ -1,0 +1,40 @@
+{# Issue #92: wrapper around the grid/list partials — owns the count line #}
+{# and the toggle buttons so both stay in sync with whichever partial is #}
+{# showing, on every surface that swaps into #chooser-results. #}
+{# A <div>, not a <p>: the btn-group below is block-level and a browser #}
+{# auto-closes an open <p> before a nested block element, which would #}
+{# knock the toggle buttons out of this flex row entirely. #}
+<div class="text-secondary mb-3 d-flex align-items-center justify-content-between">
+    {# Counts stay in GAMES: a collapsed series tile stands for several. #}
+    <span>Showing {{ game_count }} of {{ total_count }} game{{ total_count|pluralize }}</span>
+    {# hx-include carries every other active filter/sort along (they live #}
+    {# in #chooser's hidden fields too) — without it, switching view would #}
+    {# silently drop them. hx-vals overrides just "view" for this click; #}
+    {# the onclick keeps #f-view in sync for the NEXT (filter-only) request. #}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Grid or list view">
+        <button type="button"
+                class="btn btn-outline-secondary{% if filters.view == "grid" %} active{% endif %}"
+                aria-pressed="{% if filters.view == "grid" %}true{% else %}false{% endif %}"
+                hx-get="{{ chooser_url }}" hx-target="#chooser-results" hx-include="#chooser"
+                hx-push-url="true" hx-vals='{"view": "grid"}'
+                onclick="document.getElementById('f-view').value = 'grid'" title="Grid view">
+            <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
+            <span class="visually-hidden">Grid view</span>
+        </button>
+        <button type="button"
+                class="btn btn-outline-secondary{% if filters.view == "list" %} active{% endif %}"
+                aria-pressed="{% if filters.view == "list" %}true{% else %}false{% endif %}"
+                hx-get="{{ chooser_url }}" hx-target="#chooser-results" hx-include="#chooser"
+                hx-push-url="true" hx-vals='{"view": "list"}'
+                onclick="document.getElementById('f-view').value = 'list'" title="List view">
+            <i class="bi bi-list-ul" aria-hidden="true"></i>
+            <span class="visually-hidden">List view</span>
+        </button>
+    </div>
+</div>
+
+{% if filters.view == "list" %}
+{% include "partials/game_list.html" %}
+{% else %}
+{% include "partials/game_grid.html" %}
+{% endif %}

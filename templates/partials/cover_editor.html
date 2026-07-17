@@ -1,0 +1,122 @@
+{# The edit page's cover column (DESIGN §13). All POSTs swap the whole #}
+{# #cover-column so the picker art, the focal marker and the crop preview #}
+{# all update together. Shared by games and series (issue #54): the `game` #}
+{# variable is any CoverArtModel instance; cover_edit_url/cover_focus_url #}
+{# point at the right endpoints, and cover_can_clear adds the remove #}
+{# button (series covers are optional — the primary member is the #}
+{# fallback; a game must always keep some cover). #}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Cover</span>
+        {# The how-to lives in a hover tooltip (native title, as elsewhere in #}
+        {# the app) to keep the narrow column uncluttered. #}
+        {% if game.cover_url %}
+        <i class="bi bi-question-circle text-secondary" role="button" tabindex="0"
+           aria-label="How the cover picker works"
+           title="Click the art or drag the marker to set which part the square grid crop keeps — hold Shift while dragging to lock to one axis, or type exact X / Y percentages below. Zoom under 100% fits the whole cover in the tile instead; the gaps take the colour picked below."></i>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if game.cover_url %}
+        {# offsetX/Y are relative to the full-width img, so they map #}
+        {# straight to object-position percentages. htmx exposes `event` #}
+        {# in js: vals (same trick as the curation immune checkbox). #}
+        <div class="cover-focus-frame mb-2">
+            <img src="{{ game.cover_url }}" alt="Pick focal point"
+                 hx-post="{{ cover_focus_url }}"
+                 hx-target="#cover-column"
+                 hx-vals='js:{x: Math.round(event.offsetX * 100 / event.target.clientWidth),
+                              y: Math.round(event.offsetY * 100 / event.target.clientHeight)}'>
+            <span class="cover-focus-marker"
+                  style="left: {{ game.cover_focus_x }}%; top: {{ game.cover_focus_y }}%"></span>
+        </div>
+        {# Zoom is editable two ways (issue #12): the slider and a number #}
+        {# box. Both post `zoom` on change; the whole column re-renders so #}
+        {# they stay in sync. #}
+        <label class="form-label small mb-1 d-flex justify-content-between align-items-center"
+               for="cover-zoom">
+            <span>Zoom</span>
+            <span class="d-flex align-items-center gap-1">
+                <input class="form-control form-control-sm cover-num" type="number"
+                       id="cover-zoom-num" name="zoom" min="50" max="300" step="5"
+                       value="{{ game.cover_zoom }}" aria-label="Zoom percent"
+                       hx-post="{{ cover_focus_url }}"
+                       hx-target="#cover-column" hx-trigger="change">
+                <span>%{% if game.cover_fit %} · fit{% endif %}</span>
+            </span>
+        </label>
+        <input class="form-range mb-2" type="range" id="cover-zoom" name="zoom"
+               min="50" max="300" step="5" value="{{ game.cover_zoom }}"
+               hx-post="{{ cover_focus_url }}"
+               hx-target="#cover-column" hx-trigger="change">
+        {# Both inputs post the same fit_color field: the swatch sends #}
+        {# #rrggbb, the text field takes pastes with or without the # #}
+        {# (PowerToys copies bare hex). Empty clears the backdrop. #}
+        <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+            <label class="form-label small mb-0" for="cover-fit-color">Background</label>
+            <input class="form-control form-control-color form-control-sm cover-fit-swatch" type="color"
+                   id="cover-fit-color" name="fit_color"
+                   value="{{ game.cover_fit_color|default:'#16161f' }}"
+                   hx-post="{{ cover_focus_url }}"
+                   hx-target="#cover-column" hx-trigger="change">
+            <input class="form-control form-control-sm cover-fit-color-hex" type="text"
+                   name="fit_color" value="{{ game.cover_fit_color }}"
+                   placeholder="paste hex" aria-label="Fit background hex"
+                   hx-post="{{ cover_focus_url }}"
+                   hx-target="#cover-column" hx-trigger="change">
+        </div>
+        {# X and Y are editable by hand (issue #12) and each posts its own #}
+        {# axis, so you can nudge one direction only. Drag the marker on the #}
+        {# art for the same, or hold Shift to lock an axis (#13). #}
+        <div class="d-flex align-items-start gap-2 mb-2">
+            <div class="cover-crop-preview">
+                {% include "partials/cover_art.html" %}
+            </div>
+            <div class="text-secondary small">
+                <div class="mb-1">Focus</div>
+                <div class="d-flex align-items-center gap-1 mb-1">
+                    <label class="mb-0" for="cover-focus-x">X</label>
+                    <input class="form-control form-control-sm cover-num" type="number"
+                           id="cover-focus-x" name="x" min="0" max="100" step="1"
+                           value="{{ game.cover_focus_x }}" aria-label="Focal point X percent"
+                           hx-post="{{ cover_focus_url }}"
+                           hx-target="#cover-column" hx-trigger="change">
+                </div>
+                <div class="d-flex align-items-center gap-1 mb-1">
+                    <label class="mb-0" for="cover-focus-y">Y</label>
+                    <input class="form-control form-control-sm cover-num" type="number"
+                           id="cover-focus-y" name="y" min="0" max="100" step="1"
+                           value="{{ game.cover_focus_y }}" aria-label="Focal point Y percent"
+                           hx-post="{{ cover_focus_url }}"
+                           hx-target="#cover-column" hx-trigger="change">
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" type="button"
+                        hx-post="{{ cover_focus_url }}"
+                        hx-target="#cover-column"
+                        hx-vals='{"x": "50", "y": "50", "zoom": "100", "fit_color": ""}'>Reset</button>
+            </div>
+        </div>
+        <hr class="mt-0">
+        {% endif %}
+        <form hx-post="{{ cover_edit_url }}"
+              hx-target="#cover-column" hx-encoding="multipart/form-data">
+            <label class="form-label small mb-1" for="cover-file">Replace: upload a file&hellip;</label>
+            <input class="form-control form-control-sm mb-2" type="file"
+                   id="cover-file" name="file" accept="image/*">
+            <label class="form-label small mb-1" for="cover-url">&hellip;or fetch an image URL</label>
+            <input class="form-control form-control-sm mb-2" type="url"
+                   id="cover-url" name="url" placeholder="https://&hellip;">
+            {% if cover_error %}
+            <div class="text-danger small mb-2">{{ cover_error }}</div>
+            {% endif %}
+            <button class="btn btn-sm btn-primary" type="submit">Replace cover</button>
+        </form>
+        {% if cover_can_clear and game.cover_url %}
+        <hr>
+        <button class="btn btn-sm btn-outline-danger" type="button"
+                hx-post="{{ cover_edit_url }}" hx-target="#cover-column"
+                hx-vals='{"clear": "1"}'>Remove custom cover</button>
+        <div class="form-text">Falls back to the primary member&rsquo;s cover.</div>
+        {% endif %}
+    </div>
+</div>

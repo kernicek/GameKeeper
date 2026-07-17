@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Account locked · GameKeeper{% endblock %}
+{% block content %}
+<div class="py-5 mx-auto text-center" style="max-width: 32rem;">
+    <h1 class="h3 mb-3">Account temporarily locked</h1>
+    <p class="text-muted mb-3">
+        For your security, sign-in has been paused after {{ failure_limit }}
+        failed attempt{{ failure_limit|pluralize }}.
+    </p>
+    {% if cooloff_timedelta %}
+        {% widthratio cooloff_timedelta.total_seconds 3600 1 as cooloff_hours %}
+        <p class="mb-4">
+            Please try again in about {{ cooloff_hours }}&nbsp;hour{{ cooloff_hours|pluralize }},
+            or ask an administrator to unlock your account sooner.
+        </p>
+    {% else %}
+        <p class="mb-4">
+            Please try again later, or ask an administrator to unlock your account.
+        </p>
+    {% endif %}
+    <a href="{% url 'login' %}" class="btn btn-outline-secondary">Back to sign in</a>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% load status_badges %}
+{% if ending_soon %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr><th>Campaign</th><th>Platform</th><th>Ends</th><th class="text-end">Left</th></tr>
+    </thead>
+    <tbody>
+        {% for entry in ending_soon %}
+        <tr>
+            <td>
+                {% if entry.purchase.campaign_url %}
+                    <a href="{{ entry.purchase.campaign_url }}">{{ entry.purchase.name }}</a>
+                {% else %}
+                    {{ entry.purchase.name }}
+                {% endif %}
+                <span class="badge {{ entry.purchase.status|purchase_status_class }} ms-1">{{ entry.purchase.get_status_display }}</span>
+            </td>
+            <td>{{ entry.purchase.get_platform_display }}</td>
+            <td>{{ entry.purchase.campaign_end_date|date:"j M Y" }}</td>
+            <td class="text-end">
+                <span class="badge {% if entry.days_left <= window_days %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
+                    {% if entry.days_left == 0 %}today{% else %}{{ entry.days_left }}d{% endif %}
+                </span>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary p-3 mb-0">No watched campaigns ending.</p>
+{% endif %}
+{% if undated_watching %}
+<p class="text-secondary small px-3 py-2 mb-0 border-top">
+    {{ undated_watching }} watched campaign{{ undated_watching|pluralize }}
+    without an end date — add one to get reminders.
+</p>
+{% endif %}

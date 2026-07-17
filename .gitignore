@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Django
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+/media/
+/staticfiles/
+/static/CACHE/
+
+# Environment / secrets
+.env
+.gh-token
+
+# Claude files
+.claude
+CLAUDE.md
+
+# Editors / OS
+.vscode/
+*.swp
+.DS_Store

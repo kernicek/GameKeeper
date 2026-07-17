@@ -1,0 +1,45 @@
+{% load status_badges %}
+{% if pm_actions %}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr><th>Purchase</th><th>PM</th><th>Status</th><th>Closes</th></tr>
+    </thead>
+    <tbody>
+        {% for purchase in pm_actions %}
+        <tr>
+            <td>
+                <a href="{% url 'purchase_detail' purchase.pk %}">{{ purchase.name }}</a>
+            </td>
+            <td>
+                {% if purchase.pledge_manager %}
+                    {% with url=purchase.get_pledge_manager_effective_url %}
+                    {% if url %}
+                        <a href="{{ url }}">{{ purchase.pledge_manager }}</a>
+                    {% else %}
+                        {{ purchase.pledge_manager }}
+                    {% endif %}
+                    {% endwith %}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td>
+                {% comment %}
+                Sent-out (warning) reads as higher priority than a
+                filled-out-but-still-open PM (info) that can still be
+                revised (#85); palette shared via status_badges (#11).
+                {% endcomment %}
+                <span class="badge {{ purchase.pledge_manager_status|pm_status_class }}">
+                    {{ purchase.get_pledge_manager_status_display }}
+                </span>
+            </td>
+            <td>{{ purchase.pledge_manager_close_date|date:"j M Y"|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary p-3 mb-0">All pledge managers handled.</p>
+{% endif %}

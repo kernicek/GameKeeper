@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load admin_links %}
+
+{% block title %}Item {{ product.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Product detail page (issue #38): a read-only view of a wave line-item, #}
+{# linked from the purchase edit table. Editing stays on product_edit. #}
+<nav class="mb-3">
+    <a class="small" href="{% url 'purchase_detail' purchase.pk %}">&larr; {{ purchase.name }}</a>
+</nav>
+
+<div class="d-flex align-items-baseline flex-wrap gap-2 mb-3">
+    <h1 class="h3 mb-0">Item — {{ product.name }}</h1>
+    <span class="badge text-bg-secondary">{{ product.get_kind_display }}</span>
+    {% if product.copy_id %}
+    <span class="badge text-bg-success">in collection</span>
+    {% endif %}
+    <a class="btn btn-sm btn-outline-secondary align-middle ms-2"
+       href="{% url 'product_edit' product.pk %}">Edit</a>
+    {% admin_edit_link product %}
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">Wave {{ product.wave.number }} item</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Game</dt>
+                    <dd class="col-sm-8">
+                        {% if product.game %}
+                            <a href="{% url 'game_detail' product.game.pk %}">{{ product.game.name }}</a>
+                        {% else %}—{% endif %}
+                    </dd>
+                    <dt class="col-sm-4">Edition</dt>
+                    <dd class="col-sm-8">
+                        {% if product.edition %}{{ product.edition.name|default:"default edition" }}{% else %}—{% endif %}
+                    </dd>
+                    {% if product.bgg_url %}
+                    <dt class="col-sm-4">BGG</dt>
+                    <dd class="col-sm-8"><a href="{{ product.bgg_url }}">{{ product.bgg_url|truncatechars:60 }}</a></dd>
+                    {% endif %}
+                    {% if product.drive_url %}
+                    <dt class="col-sm-4">Files</dt>
+                    <dd class="col-sm-8"><a href="{{ product.drive_url }}">{{ product.drive_url|truncatechars:60 }}</a></dd>
+                    {% endif %}
+                    <dt class="col-sm-4">Contains cards</dt>
+                    <dd class="col-sm-8">{% if product.contains_cards %}{{ product.get_contains_cards_display }}{% else %}—{% endif %}</dd>
+                    <dt class="col-sm-4">Needs sleeves</dt>
+                    <dd class="col-sm-8">{% if product.needs_sleeves %}{{ product.get_needs_sleeves_display }}{% else %}—{% endif %}</dd>
+                    <dt class="col-sm-4">Miniatures</dt>
+                    <dd class="col-sm-8">{{ product.miniatures_count|default_if_none:"—" }}</dd>
+                    {% if product.fits_sleeved_note %}
+                    <dt class="col-sm-4">Fits sleeved?</dt>
+                    <dd class="col-sm-8">{{ product.fits_sleeved_note }}</dd>
+                    {% endif %}
+                    {% if product.insert_3d_note %}
+                    <dt class="col-sm-4">3D-insert plan</dt>
+                    <dd class="col-sm-8">{{ product.insert_3d_note }}</dd>
+                    {% endif %}
+                    {% if product.notes %}
+                    <dt class="col-sm-4">Notes</dt>
+                    <dd class="col-sm-8">{{ product.notes|linebreaksbr }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{# §6 backlink purchase rows (from views._game_purchase_rows), shared by #}
+{# game_detail and series_detail (issue #21). The wrapping card stays per #}
+{# page. Context: purchase_rows. #}
+<div class="table-responsive">
+<table class="table table-sm mb-0 align-middle">
+    <thead>
+        <tr>
+            <th>Purchase</th>
+            <th>Status</th>
+            <th>Wave</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in purchase_rows %}
+        <tr>
+            <td>
+                <a href="{% url 'purchase_detail' row.purchase.pk %}">{{ row.purchase.name }}</a>
+                <span class="text-secondary small">{{ row.purchase.get_platform_display }}</span>
+            </td>
+            <td>
+                <span class="badge {% if row.purchase.status == 'committed' %}text-bg-success{% elif row.purchase.status == 'watching' %}text-bg-info{% elif row.purchase.status == 'placeholder' %}text-bg-secondary{% elif row.purchase.status == 'refunded' %}text-bg-warning{% else %}text-bg-danger{% endif %}">
+                    {{ row.purchase.get_status_display }}
+                </span>
+                {% if row.in_collection %}
+                <span class="badge text-bg-secondary">in collection</span>
+                {% endif %}
+            </td>
+            <td>
+                Wave {{ row.wave.number }} — {{ row.wave.get_status_display|lower }}
+                {% if row.eta %}
+                <span class="text-secondary small">ETA {{ row.eta|date:"M Y" }}</span>
+                {% elif row.wave.arrived_date %}
+                <span class="text-secondary small">{{ row.wave.arrived_date|date:"j M Y" }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>

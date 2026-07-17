@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}{% if document %}Edit{% else %}Add{% endif %} document — {{ game.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# §7 document editor (issue #60): a game's rulebook / PnP / reference, held #}
+{# as an external URL and/or an uploaded file — both may coexist on one #}
+{# record. multipart form so the file rides along. Issue #97 reuses this form #}
+{# for editing (pre-filled) and hosts the pin/delete controls here. #}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">{% if document %}Edit{% else %}Add{% endif %} document — {{ game.name }}</h1>
+    <a class="small" href="{% url 'game_detail' game.pk %}">back to game</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">Document details</div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data"
+                      action="{% if document %}{% url 'document_edit' document.pk %}{% else %}{% url 'document_add' game.pk %}{% endif %}">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-sm-5 mb-3">
+                            <label class="form-label" for="document-type">Type</label>
+                            <select class="form-select" id="document-type" name="doc_type">
+                                {% for value, label in doc_types %}
+                                <option value="{{ value }}"{% if document.doc_type == value %} selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-7 mb-3">
+                            <label class="form-label" for="document-label">Label</label>
+                            <input class="form-control" type="text" id="document-label"
+                                   name="label" value="{{ document.label }}" placeholder="e.g. Oceania Rulebook">
+                            <div class="form-text">Names the file on disk; blank uses the upload's filename.</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="document-url">External URL</label>
+                        <input class="form-control" type="url" id="document-url"
+                               name="external_url" value="{{ document.external_url }}" placeholder="https://…">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="document-file">Upload a file</label>
+                        <input class="form-control" type="file" id="document-file" name="file">
+                        {% if document.file %}
+                        <div class="form-text">Current file: <a href="{{ document.file.url }}">{{ document.file.name }}</a> — uploading a new file replaces it.</div>
+                        {% else %}
+                        <div class="form-text">A URL and/or a file is required — both may be set on one document.</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="document-primary"
+                               name="is_primary"{% if document.is_primary %} checked{% endif %}>
+                        <label class="form-check-label" for="document-primary">Pin as primary</label>
+                    </div>
+
+                    <button class="btn btn-primary" type="submit">Save &amp; back to game</button>
+                </form>
+
+                {% if document %}
+                {# Issue #97: delete lives on the edit page, off the game card. #}
+                <hr>
+                <form method="post" action="{% url 'document_delete' document.pk %}"
+                      onsubmit="return confirm('Delete this document?');">
+                    {% csrf_token %}
+                    <button class="btn btn-outline-danger" type="submit">Delete document</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

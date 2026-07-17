@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}New expansions | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">New expansions</h1>
+    <a class="small" href="{% url 'dashboard' %}">Back to dashboard</a>
+</div>
+
+{# Full, uncapped list (issue #64) — reuses the dashboard widget (full_scope) #}
+{# so the Dismiss/Add-to-wishlist actions keep working, posting ?full=1 to stay uncapped. #}
+<div class="card" id="new-expansion-widget">
+    {% include "partials/new_expansion_widget.html" %}
+</div>
+{% endblock %}

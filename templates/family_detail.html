@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load admin_links %}
+
+{% block title %}{{ family.name }} | GameKeeper{% endblock %}
+
+{% block content %}
+{# Family detail (DESIGN §4, issue #42): a loose association of distinct #}
+{# games — hero (own cover, else the first member's alphabetically), #}
+{# curation note, BGG family link and the member grid. No pooled #}
+{# stats/Copies/Purchases: unlike a Series, members are genuinely #}
+{# different games with their own pages. #}
+<div class="row g-4 mb-4">
+    <div class="col-md-4 col-lg-3">
+        {% with cover=family.cover_source %}
+        {% if cover.cover_url %}
+        <img class="hero-cover" src="{{ cover.cover_url }}" alt="{{ family.name }}">
+        {% else %}
+        <div class="hero-placeholder">{{ family.name }}</div>
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="col-md-8 col-lg-9">
+        <h1 class="h2 mb-1">
+            {{ family.name }}
+            <a class="btn btn-sm btn-outline-secondary align-middle ms-2"
+               href="{% url 'family_edit' family.pk %}">Edit</a>
+            {% admin_edit_link family %}
+        </h1>
+        <p class="text-secondary mb-3">
+            Family of {{ members|length }} related game{{ members|length|pluralize }}
+        </p>
+
+        {% if family.note %}
+        <p class="mb-3">{{ family.note|linebreaksbr }}</p>
+        {% endif %}
+
+        {% if family.bgg_family_id %}
+        <p class="mb-0">
+            <a href="https://boardgamegeek.com/boardgamefamily/{{ family.bgg_family_id }}"
+               target="_blank" rel="noopener">Family on BGG</a>
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<h2 class="h5 mb-3">Games in this family</h2>
+{% if members %}
+<div class="cover-grid mb-4">
+    {% for game in members %}
+    <a class="cover" title="{{ game.name }}" href="{% url 'game_detail' game.pk %}">
+        {% include "partials/cover_art.html" with use_preview=True %}
+        <span class="cover-label">{{ game.name }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary mb-4">No member games yet — add some in the editor.</div>
+{% endif %}
+{% endblock %}

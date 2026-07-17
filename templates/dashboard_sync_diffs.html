@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}BGG sync diffs | GameKeeper{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-baseline justify-content-between mb-3">
+    <h1 class="h3 mb-0">BGG sync diffs</h1>
+    <a class="small" href="{% url 'dashboard' %}">Back to dashboard</a>
+</div>
+
+{# Full, uncapped list (issue #83) — reuses the dashboard widget (full_scope) #}
+{# so the Dismiss buttons keep working; dismiss posts ?full=1 to stay uncapped. #}
+<div class="card" id="sync-diff-widget">
+    {% include "partials/sync_diff_widget.html" %}
+</div>
+{% endblock %}
