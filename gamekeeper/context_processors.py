@@ -51,3 +51,19 @@ def update_notice(request):
     if user is None or not user.is_superuser:
         return {}
     return {'update_notice': get_update_status()}
+
+
+def footer(request):
+    """Expose the running app version to every template's footer (issue #25).
+
+    APP_VERSION is baked in at Docker build time from the pushed git tag
+    (see the update-notice feature, issue #95) — a bare CalVer string like
+    "2026.07.17.1", with no "v" prefix — and is empty in dev. Unlike
+    update_notice, this is shown to every visitor, not gated to superusers.
+    The "v" is added here for display so the footer never shows a bare tag;
+    if APP_VERSION already starts with "v" it isn't double-prefixed.
+    """
+    version = getattr(settings, 'APP_VERSION', '')
+    if version and not version.startswith('v'):
+        version = f'v{version}'
+    return {'APP_VERSION': version}

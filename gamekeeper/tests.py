@@ -14655,3 +14655,40 @@ class UpdateNoticeNavbarTests(TestCase):
         ):
             body = self.client.get("/settings/").content.decode()
         self.assertNotIn("bi-arrow-up-circle-fill", body)
+
+
+# ===========================================================================
+# Issue #25  Site footer
+# ===========================================================================
+
+class SiteFooterTests(TestCase):
+    """base.html renders a persistent footer with app name/version, a link to
+    the source repo, and a copyright line, on every page."""
+
+    def test_footer_shows_app_name_and_repo_link_and_copyright(self):
+        # Any page renders base.html; the login page needs no fixtures.
+        response = self.client.get("/accounts/login/")
+        self.assertContains(response, "<footer")
+        self.assertContains(response, "GameKeeper")
+        self.assertContains(
+            response, 'href="https://github.com/kernicek/GameKeeper"')
+        self.assertContains(response, "&copy; 2026 Vojta Karen")
+
+    def test_footer_adds_v_prefix_to_calver_tag(self):
+        with override_settings(APP_VERSION="2026.07.17.1"):
+            response = self.client.get("/accounts/login/")
+        self.assertContains(response, "GameKeeper v2026.07.17.1")
+
+    def test_footer_does_not_double_prefix_a_v_already_present(self):
+        with override_settings(APP_VERSION="v5"):
+            response = self.client.get("/accounts/login/")
+        self.assertContains(response, "GameKeeper v5")
+        self.assertNotContains(response, "vv5")
+
+    def test_footer_omits_bare_version_when_app_version_is_unset(self):
+        # Dev has no APP_VERSION baked in; the footer must not render a bare
+        # "GameKeeper v" or "GameKeeper " with nothing after it.
+        with override_settings(APP_VERSION=""):
+            response = self.client.get("/accounts/login/")
+        self.assertContains(response, "GameKeeper")
+        self.assertNotContains(response, "GameKeeper v")
