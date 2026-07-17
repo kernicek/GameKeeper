@@ -9,6 +9,7 @@ single-concurrency sync worker) per DESIGN §2.1.
 """
 
 import os
+import sys
 from pathlib import Path
 
 from celery.schedules import crontab
@@ -122,6 +123,13 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+
+# Under test, the default PBKDF2 hasher costs ~0.6 s per hash, and the suite's
+# create_user()/client.login() calls (logins run per test method) add up to
+# minutes of pure hashing. MD5 here applies to `manage.py test` only —
+# production hashing is untouched.
+if 'test' in sys.argv:
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 
 # Internationalization
