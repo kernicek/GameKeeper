@@ -13,14 +13,31 @@
         <table class="table table-sm mb-0 align-middle">
             <thead>
                 <tr>
-                    <th>Game</th>
+                    {# Issue #40: Game/Last played/Excitement/Keep are #}
+                    {# clickable sort headers — hx-include pulls in the rest #}
+                    {# of #cull-filters, hx-vals overrides just "sort" for #}
+                    {# this click, and the onclick keeps #f-sort in sync for #}
+                    {# later requests (same idiom as the collection chooser's #}
+                    {# sortable columns). Cull-priority (the default) has no #}
+                    {# matching column, so no header shows as active until #}
+                    {# one is clicked. #}
+                    {% for col in sort_columns %}
+                    <th{% if col.key == "excitement" %} class="text-end"{% endif %}>
+                        <a href="#" class="text-reset text-decoration-none d-inline-flex align-items-center gap-1"
+                           hx-get="{% url 'curation' %}" hx-target="#cull-results" hx-include="#cull-filters"
+                           hx-push-url="true" hx-vals='{"sort": "{{ col.next_sort }}"}'
+                           onclick="document.getElementById('f-sort').value = '{{ col.next_sort }}'">
+                            {{ col.label }}
+                            {% if col.direction == "asc" %}
+                            <i class="bi bi-caret-up-fill" aria-hidden="true"></i>
+                            {% elif col.direction == "desc" %}
+                            <i class="bi bi-caret-down-fill" aria-hidden="true"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    {% endfor %}
                     {# Issue #9: icon headers (bootstrap-icons) to save width; #}
                     {# title = the tooltip that names the column. #}
-                    <th class="text-end" title="Excitement">
-                        <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
-                        <span class="visually-hidden">Excitement</span>
-                    </th>
-                    <th>Keep</th>
                     <th class="text-center" title="Immune from culling">
                         <i class="bi bi-shield-fill-check" aria-hidden="true"></i>
                         <span class="visually-hidden">Immune</span>
@@ -41,6 +58,15 @@
                         {% endif %}
                         {% if copy.edition.game.bgg_collection_status == "prev_owned" %}
                             <span class="badge text-bg-danger">prev. owned on BGG</span>
+                        {% endif %}
+                    </td>
+                    {# Issue #40: derived from the game's most recent synced #}
+                    {# Play — read-only, no editing control here. #}
+                    <td>
+                        {% if copy.last_played %}
+                            <span class="badge text-bg-secondary">{{ copy.last_played_days_ago }}d ago</span>
+                        {% else %}
+                            <span class="badge text-bg-secondary">never</span>
                         {% endif %}
                     </td>
                     {# In-place §11 editing: change posts the one field plus #}

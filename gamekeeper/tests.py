@@ -7972,6 +7972,98 @@ class CurationViewTests(TestCase):
         self.assertNotIn("Borrowed Beauty", self.names(response))
         self.assertContains(response, "3 of 4 active copies")
 
+    def test_never_played_shows_never_badge(self):
+        # Issue #40: none of the default fixtures have any synced Play rows.
+        response = self.get()
+        self.assertContains(response, "never")
+
+    def test_last_played_badge_shows_days_since_most_recent_play(self):
+        # Issue #40: the most recent of several Play rows wins.
+        Play.objects.create(
+            game=self.fine.edition.game, external_id="1",
+            play_date=timezone.localdate() - datetime.timedelta(days=20),
+            synced_at=timezone.now(),
+        )
+        Play.objects.create(
+            game=self.fine.edition.game, external_id="2",
+            play_date=timezone.localdate() - datetime.timedelta(days=5),
+            synced_at=timezone.now(),
+        )
+        response = self.get()
+        self.assertContains(response, "5d ago")
+        self.assertNotContains(response, "20d ago")
+
+    def test_no_sort_param_defaults_to_cull_priority_with_no_active_column(self):
+        response = self.get()
+        self.assertEqual(
+            response.context["sort"], "",
+        )
+        self.assertTrue(
+            all(c["direction"] is None for c in response.context["sort_columns"]),
+        )
+
+    def test_sort_by_name_ascending_and_descending(self):
+        # Issue #40: sorting is independent of the cull-priority default.
+        asc = self.get({"sort": "name"})
+        self.assertEqual(
+            self.names(asc), ["Boring Filler", "Fine Game", "Unrated Newcomer"],
+        )
+        desc = self.get({"sort": "-name"})
+        self.assertEqual(
+            self.names(desc), ["Unrated Newcomer", "Fine Game", "Boring Filler"],
+        )
+
+    def test_sort_by_excitement_sinks_unrated_last_regardless_of_direction(self):
+        asc = self.get({"sort": "excitement"})
+        self.assertEqual(
+            self.names(asc), ["Boring Filler", "Fine Game", "Unrated Newcomer"],
+        )
+        desc = self.get({"sort": "-excitement"})
+        self.assertEqual(
+            self.names(desc), ["Fine Game", "Boring Filler", "Unrated Newcomer"],
+        )
+
+    def test_sort_by_keep_status_sinks_blank_last(self):
+        # Only "All-time Favourite" has a keep_status set among the visible
+        # (immune-included) copies; the rest are blank and sink regardless
+        # of direction.
+        response = self.get({"show_immune": "1", "sort": "keep"})
+        self.assertEqual(self.names(response)[0], "All-time Favourite")
+        response = self.get({"show_immune": "1", "sort": "-keep"})
+        self.assertEqual(self.names(response)[0], "All-time Favourite")
+
+    def test_sort_by_last_played_never_played_sorts_first_ascending_last_descending(self):
+        # Issue #40: never-played is treated as infinitely long ago, not a
+        # data gap — the opposite of the collection list's "missing sinks
+        # last regardless of direction" convention.
+        Play.objects.create(
+            game=self.bored.edition.game, external_id="1",
+            play_date=timezone.localdate() - datetime.timedelta(days=50),
+            synced_at=timezone.now(),
+        )
+        Play.objects.create(
+            game=self.fine.edition.game, external_id="2",
+            play_date=timezone.localdate() - datetime.timedelta(days=5),
+            synced_at=timezone.now(),
+        )
+        # Unrated Newcomer never has a Play row.
+        asc = self.get({"sort": "last_played"})
+        self.assertEqual(
+            self.names(asc), ["Unrated Newcomer", "Boring Filler", "Fine Game"],
+        )
+        desc = self.get({"sort": "-last_played"})
+        self.assertEqual(
+            self.names(desc), ["Fine Game", "Boring Filler", "Unrated Newcomer"],
+        )
+
+    def test_sort_column_headers_report_next_sort_and_direction(self):
+        response = self.get({"sort": "-excitement"})
+        columns = {c["key"]: c for c in response.context["sort_columns"]}
+        self.assertEqual(columns["excitement"]["direction"], "desc")
+        self.assertEqual(columns["excitement"]["next_sort"], "excitement")
+        self.assertIsNone(columns["name"]["direction"])
+        self.assertEqual(columns["name"]["next_sort"], "name")
+
 
 class CurationEditTests(TestCase):
     """§11 in-place editing on the curation table: owner-scoped htmx POSTs
@@ -8072,6 +8164,15 @@ class CurationEditTests(TestCase):
             self.assertEqual(response.status_code, 400)
         self.copy.refresh_from_db()
         self.assertEqual(self.copy.excitement, Decimal("3.0"))
+
+    def test_excitement_update_resorts_by_active_sort_when_no_order_is_pinned(self):
+        # Issue #40: a posted "sort" (from the hx-include'd #cull-filters
+        # form) without a frozen_order re-sorts by that column instead of
+        # falling all the way back to cull-priority.
+        response = self.post({"excitement": "1", "sort": "-name"})
+        self.copy.refresh_from_db()
+        self.assertEqual(self.copy.excitement, Decimal("1.0"))
+        self.assertEqual(self.names(response), ["Fine Game", "Boring Filler"])
 
     def test_keep_status_update_and_clear(self):
         response = self.post({"keep_status": "will_leave"})

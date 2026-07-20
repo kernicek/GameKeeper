@@ -358,7 +358,10 @@ full reload; `hx-push-url` keeps the filtered view bookmarkable).
 Per-Copy personal fields (excitement, immune, 1-in-1-out, why-it-might-leave, play-until-or-it-leaves)
 feed a dedicated **"cull candidates" view** (sort by low excitement, not-immune,
 "why it might leave" filled in). **Excitement replaces rating** and is the primary cull signal.
-**Archive** (§4) is the endpoint of this lifecycle.
+**Archive** (§4) is the endpoint of this lifecycle. The table also shows each copy's game's
+**last played** (derived from §8 Play history, "never" if none) and its Game/Last
+played/Excitement/Keep columns are user-sortable, defaulting back to the cull-priority
+order above (issue #40).
 
 ### Dashboard — "needs attention"
 Widgets: **pledge managers closing soon · campaigns ending soon · incoming waves · sleeve shortfall ·
