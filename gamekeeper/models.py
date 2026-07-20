@@ -460,6 +460,13 @@ class Game(CoverArtModel):
         "Family", blank=True, related_name="members",
     )
 
+    # Designer credits (issue #19), populated from BGG's boardgamedesigner
+    # thing-payload links. Plain M2M — no per-link data like GameTag's
+    # is_favourite, so no through model.
+    designers = models.ManyToManyField(
+        "Designer", blank=True, related_name="games",
+    )
+
     # §7 documents (rulebooks, references) attach here via the generic
     # relation, so obj.documents works and deleting the game clears them.
     documents = GenericRelation("Document")
@@ -945,6 +952,22 @@ class Family(CoverArtModel):
             return self
         members = list(self.members.all())  # walks the prefetch when warm
         return members[0] if members else None
+
+
+class Designer(models.Model):
+    """A game designer credit (issue #19), shared across every game they
+    worked on via Game.designers. Unlike Tag(kind=mechanic), BGG's
+    boardgamedesigner links carry a stable id, so dedupe keys on
+    bgg_designer_id rather than name."""
+
+    name = models.CharField(max_length=300)
+    bgg_designer_id = models.PositiveIntegerField(unique=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
 
 
 # ===========================================================================

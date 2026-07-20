@@ -355,7 +355,11 @@ def parse_things(xml_text):
 
     "mechanics" is the sorted, deduped list of boardgamemechanic link
     values (names) — BGG has no stable id on the Tag model to key by, so
-    name is the join key, same as every other Tag."""
+    name is the join key, same as every other Tag.
+
+    "designers" is the deduped list of boardgamedesigner links, each an
+    {"bgg_id", "name"} dict — unlike mechanics, BGG gives designers a
+    stable id (Designer.bgg_designer_id), so id is the join key."""
     items = {}
     for element in ElementTree.fromstring(xml_text).iter("item"):
         bgg_id = int(element.get("id"))
@@ -364,6 +368,14 @@ def parse_things(xml_text):
             if name_element.get("type") == "primary":
                 name = (name_element.get("value") or "").strip()
                 break
+        designers = {}
+        for link in element.iter("link"):
+            if link.get("type") != "boardgamedesigner":
+                continue
+            designer_id = _to_int(link.get("id"))
+            designer_name = (link.get("value") or "").strip()
+            if designer_id is not None and designer_name:
+                designers[designer_id] = designer_name
         data = {
             "expands_bgg_ids": [
                 int(link.get("id"))
@@ -377,6 +389,10 @@ def parse_things(xml_text):
                 if link.get("type") == "boardgamemechanic"
                 and (link.get("value") or "").strip()
             }),
+            "designers": [
+                {"bgg_id": designer_id, "name": designer_name}
+                for designer_id, designer_name in sorted(designers.items())
+            ],
             "bgg_name": name,
             "year_published": _to_int(_attr_value(element, "yearpublished")),
             "image_url": (element.findtext("image") or "").strip(),

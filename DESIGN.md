@@ -326,6 +326,9 @@ crowdfunding **and** plain preorders.
 ## 10. Taxonomy & filtering
 
 - **Mechanics = BGG-synced tags** (M2M `Tag(kind=mechanic)`); the user stops maintaining them by hand.
+- **Designers** (issue #19) — BGG-synced M2M, deduped by BGG id (`Designer(name, bgg_designer_id)`)
+  rather than name, since `boardgamedesigner` links carry a stable id unlike mechanics. A standalone
+  model (not a `Tag`) since it's expected to grow its own detail page and GameChooser facet later.
 - **Themes = the user's own curated vocabulary** (`Tag(kind=theme)`) — BGG doesn't have this set.
   **Adapts-from (book/comic/film/videogame) fold in as themes.**
 - **First-class curated fields** (BGG doesn't give these cleanly, and they're filtered on constantly):

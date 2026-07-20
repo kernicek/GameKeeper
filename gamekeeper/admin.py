@@ -4,9 +4,9 @@ from simple_history.admin import SimpleHistoryAdmin
 
 from .models import (
     Accessory, AccessoryCopy, BggLink, BggSyncDiff, CardSize, Copy,
-    CopySleeveStatus, DigitalImplementation, Edition, ExternalLink, Family,
-    Game, GameType, GameTag, Group, Invite, Loan, Location, Membership,
-    PledgeManager, PledgePlan, PledgePlanBundle, PledgePlanItem,
+    CopySleeveStatus, Designer, DigitalImplementation, Edition, ExternalLink,
+    Family, Game, GameType, GameTag, Group, Invite, Loan, Location,
+    Membership, PledgeManager, PledgePlan, PledgePlanBundle, PledgePlanItem,
     Product, ProductSleeveRequirement, Purchase, ReminderLog, Series,
     ShareGrant, SleeveInventory, SleeveProduct, SleeveRequirement, Tag, Wave,
 )
@@ -116,6 +116,7 @@ class GameAdmin(admin.ModelAdmin):
     list_display = ('name', 'type', 'year_published', 'last_synced_at')
     list_filter = ('type', 'language_dependency', 'game_types__game_type')
     search_fields = ('name', 'bgg_name')
+    filter_horizontal = ('designers',)
     inlines = [BggLinkInline, ExternalLinkInline, EditionInline,
                GameTagInline, GameTypeInline, DigitalImplementationInline]
 
@@ -151,6 +152,12 @@ class FamilyAdmin(admin.ModelAdmin):
 class TagAdmin(admin.ModelAdmin):
     list_display = ('name', 'kind')
     list_filter = ('kind',)
+    search_fields = ('name',)
+
+
+@admin.register(Designer)
+class DesignerAdmin(admin.ModelAdmin):
+    list_display = ('name', 'bgg_designer_id')
     search_fields = ('name',)
 
 

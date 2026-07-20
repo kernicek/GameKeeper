@@ -69,7 +69,7 @@ from gamekeeper.bgg_sync import (
     BGG_SYNCED_FIELDS, COLLECTION_STATUSES, apply_bgg_fields,
     bgg_credentials_error, clear_push_failure, fetch_plays,
     link_expansion_bases, make_bgg_client, push_is_pending, store_plays,
-    sync_mechanic_tags,
+    sync_designers, sync_mechanic_tags,
 )
 from gamekeeper.models import BggLink, BggSyncDiff, Copy, Game, Product
 
@@ -277,11 +277,14 @@ class Command(BaseCommand):
                     self._bump("games synced from collection")
 
             for bgg_id, data in sorted(thing_data.items()):
-                # Neither is a Game field: base-game ids for the expands M2M
-                # (issue #40) and mechanic names for the Tag(kind=mechanic)
-                # reconcile (DESIGN §10) — _apply must never see either.
+                # None of these are Game fields: base-game ids for the expands
+                # M2M (issue #40), mechanic names for the Tag(kind=mechanic)
+                # reconcile (DESIGN §10), and designer entries for the
+                # Designer M2M reconcile (issue #19) — _apply must never see
+                # any of them.
                 expands_bgg_ids = data.pop("expands_bgg_ids", ())
                 mechanic_names = data.pop("mechanics", ())
+                designers = data.pop("designers", ())
                 for game in games_by_bgg_id.get(bgg_id, []):
                     if bgg_id in collection:
                         # Collection already carried everything but weight.
@@ -292,6 +295,7 @@ class Command(BaseCommand):
                         self._bump("games synced from thing only (not in BGG collection)")
                     self._link_expansion_bases(game, expands_bgg_ids, games_by_bgg_id)
                     self._sync_mechanic_tags(game, mechanic_names)
+                    self._sync_designers(game, designers)
 
             # Wishlist: mirror onto matched games only. Membership wins — a
             # game already carrying own/preordered/prevowned keeps it; the
@@ -411,6 +415,19 @@ class Command(BaseCommand):
             for _ in range(removed):
                 self._bump("mechanic tags removed")
 
+    def _sync_designers(self, game, designers):
+        """Reconcile Game.designers from the thing payload (issue #19), via
+        the shared helper; keep per-designer report counters. This is also
+        the backfill path — re-running the sync reconciles designers for
+        every already-synced game."""
+        added, removed = sync_designers(game, designers)
+        if added or removed:
+            self._changed[game.pk].add("designers")
+            for _ in range(added):
+                self._bump("designers added")
+            for _ in range(removed):
+                self._bump("designers removed")
+
     def _summarize_changes(self):
         synced = len(self._changed)
         updated = sum(1 for fields in self._changed.values() if fields)
@@ -421,6 +438,7 @@ class Command(BaseCommand):
             ("image_url", "games that gained/changed cover art"),
             ("weight", "games that gained/changed weight"),
             ("mechanics", "games that gained/changed mechanic tags"),
+            ("designers", "games that gained/changed designers"),
         ):
             self.counts[label] = sum(
                 1 for fields in self._changed.values() if field in fields

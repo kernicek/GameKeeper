@@ -2664,7 +2664,7 @@ def game_detail(request, pk):
             # Issue #98: each expansion row/badge renders short_name, which
             # strips its base name — prefetch the reverse link to avoid N+1.
             "expansions__expands", "expansions__game_types",
-            "game_types", "game_tags__tag", "families",
+            "game_types", "game_tags__tag", "families", "designers",
             "digital_implementations", "bgg_links", "external_links",
             "editions__copies__location", "editions__copies__owner",
             "editions__copies__loans", "expansions__editions__copies__loans",
