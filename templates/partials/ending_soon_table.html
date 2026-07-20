@@ -9,14 +9,16 @@
         {% for entry in ending_soon %}
         <tr>
             <td>
-                {% if entry.purchase.campaign_url %}
-                    <a href="{{ entry.purchase.campaign_url }}">{{ entry.purchase.name }}</a>
-                {% else %}
-                    {{ entry.purchase.name }}
-                {% endif %}
+                <a href="{% url 'purchase_detail' entry.purchase.pk %}">{{ entry.purchase.name }}</a>
                 <span class="badge {{ entry.purchase.status|purchase_status_class }} ms-1">{{ entry.purchase.get_status_display }}</span>
             </td>
-            <td>{{ entry.purchase.get_platform_display }}</td>
+            <td>
+                {% if entry.purchase.campaign_url %}
+                    <a href="{{ entry.purchase.campaign_url }}">{{ entry.purchase.get_platform_display }}</a>
+                {% else %}
+                    {{ entry.purchase.get_platform_display }}
+                {% endif %}
+            </td>
             <td>{{ entry.purchase.campaign_end_date|date:"j M Y" }}</td>
             <td class="text-end">
                 <span class="badge {% if entry.days_left <= window_days %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
