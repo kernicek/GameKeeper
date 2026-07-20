@@ -7880,8 +7880,8 @@ class CurationViewTests(TestCase):
         cls._copy("Pavel's Problem", owner=cls.other, excitement="0.5")
 
     @classmethod
-    def _copy(cls, name, owner=None, **fields):
-        game = Game.objects.create(name=name)
+    def _copy(cls, name, owner=None, game_type=Game.Type.BASE, **fields):
+        game = Game.objects.create(name=name, type=game_type)
         edition = Edition.objects.create(game=game, is_default=True)
         return Copy.objects.create(
             owner=owner or cls.user, edition=edition, **fields,
@@ -7971,6 +7971,23 @@ class CurationViewTests(TestCase):
         response = self.get()
         self.assertNotIn("Borrowed Beauty", self.names(response))
         self.assertContains(response, "3 of 4 active copies")
+
+    def test_expansions_hidden_by_default(self):
+        # Issue #39: expansions clutter the cull list — hidden by default,
+        # same as immune copies, and still counted toward the total.
+        self._copy(
+            "Expansion Pack", game_type=Game.Type.EXPANSION, excitement="0.1",
+        )
+        response = self.get()
+        self.assertNotIn("Expansion Pack", self.names(response))
+        self.assertContains(response, "3 of 5 active copies")
+
+    def test_show_expansions_toggle_includes_expansions(self):
+        self._copy(
+            "Expansion Pack", game_type=Game.Type.EXPANSION, excitement="0.1",
+        )
+        response = self.get({"show_expansions": "1"})
+        self.assertIn("Expansion Pack", self.names(response))
 
 
 class CurationEditTests(TestCase):
