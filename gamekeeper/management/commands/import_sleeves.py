@@ -358,7 +358,7 @@ class Command(BaseCommand):
 
     def _import_requirement(self, copy, size, batches, row, title):
         total = sum(count for count, _ in batches)
-        _, created = SleeveRequirement.objects.update_or_create(
+        requirement, created = SleeveRequirement.objects.update_or_create(
             edition=copy.edition, card_size=size, defaults={"count": total},
         )
         self._bump("requirements", created=created)
@@ -379,7 +379,7 @@ class Command(BaseCommand):
                 f"status '{status}' taken from the largest batch",
             ))
         _, created = CopySleeveStatus.objects.update_or_create(
-            copy=copy, card_size=size,
+            copy=copy, requirement=requirement,
             defaults={"status": status, "product": product},
         )
         self._bump("sleeve statuses", created=created)

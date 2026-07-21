@@ -1553,9 +1553,11 @@ class SleeveInventory(models.Model):
 
 
 class CopySleeveStatus(models.Model):
-    """Per-Copy, per-CardSize sleeved state (DESIGN §5), optionally recording
-    which SleeveProduct was used — reproduces the sheet's per-brand
-    breakdown."""
+    """Per-Copy, per-SleeveRequirement sleeved state (DESIGN §5), optionally
+    recording which SleeveProduct was used — reproduces the sheet's per-brand
+    breakdown. Keyed off the requirement (issue #3) rather than a card size of
+    its own, so the size can never drift out of sync with the edition's
+    requirement."""
 
     class Status(models.TextChoices):
         NOT_SLEEVED = "not_sleeved", "Not sleeved"
@@ -1565,8 +1567,8 @@ class CopySleeveStatus(models.Model):
     copy = models.ForeignKey(
         Copy, on_delete=models.CASCADE, related_name="sleeve_statuses",
     )
-    card_size = models.ForeignKey(
-        CardSize, on_delete=models.PROTECT, related_name="copy_statuses",
+    requirement = models.ForeignKey(
+        SleeveRequirement, on_delete=models.CASCADE, related_name="copy_statuses",
     )
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.NOT_SLEEVED,
@@ -1580,12 +1582,16 @@ class CopySleeveStatus(models.Model):
         verbose_name_plural = "copy sleeve statuses"
         constraints = [
             models.UniqueConstraint(
-                fields=["copy", "card_size"], name="unique_sleeve_status_per_copy_size",
+                fields=["copy", "requirement"],
+                name="unique_sleeve_status_per_copy_requirement",
             ),
         ]
 
     def __str__(self):
-        return f"{self.copy} / {self.card_size}: {self.get_status_display()}"
+        return (
+            f"{self.copy} / {self.requirement.card_size}: "
+            f"{self.get_status_display()}"
+        )
 
 
 # ===========================================================================
@@ -2352,26 +2358,19 @@ def sleeve_shortfall(owner, include_preorders=False):
         status=CopySleeveStatus.Status.TO_SLEEVE,
     ).exclude(
         copy__ready_status=Copy.ReadyStatus.NOT_READY,
-    ).select_related("copy__edition__game")
+    ).select_related("copy__edition__game", "requirement__card_size")
 
-    requirements = {
-        (r.edition_id, r.card_size_id): r.count
-        for r in SleeveRequirement.objects.filter(
-            edition__copies__owner=owner,
-        )
-    }
     needed = defaultdict(int)
     needed_by_game = defaultdict(lambda: defaultdict(int))
     game_labels = {}
     for status in statuses:
-        count = requirements.get(
-            (status.copy.edition_id, status.card_size_id), 0,
-        )
-        needed[status.card_size_id] += count
+        count = status.requirement.count
+        card_size_id = status.requirement.card_size_id
+        needed[card_size_id] += count
         game = status.copy.edition.game
         key = ("game", game.pk)
         game_labels[key] = (str(game), game.pk)
-        needed_by_game[status.card_size_id][key] += count
+        needed_by_game[card_size_id][key] += count
 
     if include_preorders:
         preorder_needs = ProductSleeveRequirement.objects.filter(

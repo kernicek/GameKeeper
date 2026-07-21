@@ -28,9 +28,7 @@
             </td>
             {% endif %}
             <td>{{ row.card_size }}</td>
-            {# A status row without a matching edition requirement has no card #}
-            {# count to show. #}
-            <td class="text-end">{{ row.count|default_if_none:"?" }}</td>
+            <td class="text-end">{{ row.count }}</td>
             <td>
                 {% if editable %}
                 {# In-place §5 editing: each select posts just itself (plus the #}
@@ -38,7 +36,7 @@
                 <select name="status"
                         class="form-select form-select-sm sleeve-status-select"
                         aria-label="Sleeve status for {{ row.copy.edition.game.name }} {{ row.card_size }}"
-                        hx-post="{% url 'sleeve_status_edit' row.copy.pk row.card_size.pk %}"
+                        hx-post="{% url 'sleeve_status_edit' row.copy.pk row.requirement.pk %}"
                         hx-target="{{ hx_target }}"{% if hx_include %} hx-include="{{ hx_include }}"{% endif %}{% if scope %} hx-vals='{"scope": "{{ scope }}"}'{% endif %}>
                     {% for value, label in status_choices %}
                     <option value="{{ value }}"
@@ -57,7 +55,7 @@
                     <select name="product"
                             class="form-select form-select-sm sleeve-product-select"
                             aria-label="Sleeve product used for {{ row.copy.edition.game.name }} {{ row.card_size }}"
-                            hx-post="{% url 'sleeve_status_edit' row.copy.pk row.card_size.pk %}"
+                            hx-post="{% url 'sleeve_status_edit' row.copy.pk row.requirement.pk %}"
                             hx-target="{{ hx_target }}"{% if hx_include %} hx-include="{{ hx_include }}"{% endif %}{% if scope %} hx-vals='{"scope": "{{ scope }}"}'{% endif %}>
                         <option value="">—</option>
                         {% for product in row.products %}

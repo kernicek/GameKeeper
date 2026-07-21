@@ -293,17 +293,20 @@ class SleeveModelTests(TestCase):
             SleeveRequirement.objects.create(edition=self.edition, card_size=self.medium, count=1)
 
     def test_one_status_per_copy_and_size(self):
-        CopySleeveStatus.objects.create(copy=self.copy, card_size=self.medium)
+        requirement = SleeveRequirement.objects.create(
+            edition=self.edition, card_size=self.medium, count=365)
+        CopySleeveStatus.objects.create(copy=self.copy, requirement=requirement)
         with self.assertRaises(IntegrityError):
-            CopySleeveStatus.objects.create(copy=self.copy, card_size=self.medium)
+            CopySleeveStatus.objects.create(copy=self.copy, requirement=requirement)
 
     def test_shortfall_rounds_up_to_whole_packs(self):
         product = SleeveProduct.objects.create(
             brand="Tlama", name="Diamond Orange", card_size=self.medium,
         )
-        SleeveRequirement.objects.create(edition=self.edition, card_size=self.medium, count=365)
+        requirement = SleeveRequirement.objects.create(
+            edition=self.edition, card_size=self.medium, count=365)
         CopySleeveStatus.objects.create(
-            copy=self.copy, card_size=self.medium,
+            copy=self.copy, requirement=requirement,
             status=CopySleeveStatus.Status.TO_SLEEVE,
         )
         SleeveInventory.objects.create(owner=self.user, product=product, packs=1, loose=50)
@@ -321,14 +324,16 @@ class SleeveModelTests(TestCase):
         other_edition = Edition.objects.create(game=other_game, is_default=True)
         other_copy = Copy.objects.create(owner=self.user, edition=other_edition)
 
-        SleeveRequirement.objects.create(edition=self.edition, card_size=self.medium, count=100)
-        SleeveRequirement.objects.create(edition=other_edition, card_size=self.medium, count=200)
+        requirement = SleeveRequirement.objects.create(
+            edition=self.edition, card_size=self.medium, count=100)
+        other_requirement = SleeveRequirement.objects.create(
+            edition=other_edition, card_size=self.medium, count=200)
         CopySleeveStatus.objects.create(
-            copy=self.copy, card_size=self.medium,
+            copy=self.copy, requirement=requirement,
             status=CopySleeveStatus.Status.TO_SLEEVE,
         )
         CopySleeveStatus.objects.create(
-            copy=other_copy, card_size=self.medium,
+            copy=other_copy, requirement=other_requirement,
             status=CopySleeveStatus.Status.TO_SLEEVE,
         )
 
@@ -340,9 +345,10 @@ class SleeveModelTests(TestCase):
         ])
 
     def test_shortfall_ignores_sleeved_and_archived_copies(self):
-        SleeveRequirement.objects.create(edition=self.edition, card_size=self.medium, count=365)
+        requirement = SleeveRequirement.objects.create(
+            edition=self.edition, card_size=self.medium, count=365)
         CopySleeveStatus.objects.create(
-            copy=self.copy, card_size=self.medium,
+            copy=self.copy, requirement=requirement,
             status=CopySleeveStatus.Status.SLEEVED,
         )
         self.assertEqual(sleeve_shortfall(self.user), [])
@@ -356,9 +362,10 @@ class SleeveModelTests(TestCase):
 
     def test_shortfall_ignores_not_ready_copies(self):
         # Issue #19: an unprinted PnP copy has nothing to sleeve yet.
-        SleeveRequirement.objects.create(edition=self.edition, card_size=self.medium, count=365)
+        requirement = SleeveRequirement.objects.create(
+            edition=self.edition, card_size=self.medium, count=365)
         CopySleeveStatus.objects.create(
-            copy=self.copy, card_size=self.medium,
+            copy=self.copy, requirement=requirement,
             status=CopySleeveStatus.Status.TO_SLEEVE,
         )
         self.copy.ready_status = Copy.ReadyStatus.NOT_READY
@@ -524,16 +531,16 @@ class ImportSleevesTests(TestCase):
             (Decimal("63.0"), Decimal("63.0")): 46,  # from the Other pair
         })
 
-        mini = self.copy.sleeve_statuses.get(card_size=self.size("41", "63"))
+        mini = self.copy.sleeve_statuses.get(requirement__card_size=self.size("41", "63"))
         self.assertEqual(mini.status, CopySleeveStatus.Status.SLEEVED)
         self.assertEqual(mini.product.brand, "Tlama")
         self.assertEqual(mini.product.name, "Diamond Yellow")  # catalog product reused
 
-        teal = self.copy.sleeve_statuses.get(card_size=self.size("45", "68"))
+        teal = self.copy.sleeve_statuses.get(requirement__card_size=self.size("45", "68"))
         self.assertEqual(teal.status, CopySleeveStatus.Status.NOT_SLEEVED)
         self.assertIsNone(teal.product)
 
-        medium = self.copy.sleeve_statuses.get(card_size=self.size("57.5", "89"))
+        medium = self.copy.sleeve_statuses.get(requirement__card_size=self.size("57.5", "89"))
         self.assertEqual(medium.status, CopySleeveStatus.Status.TO_SLEEVE)
 
     def test_imports_catalog_products_and_inventory(self):
@@ -8592,17 +8599,17 @@ class SleevesPageMixin:
 
         # Arnak: standard cards marked to-sleeve, minis with no status row yet.
         cls.arnak = cls._copy("Lost Ruins of Arnak")
-        cls._require(cls.arnak, cls.standard, 195)
-        cls._require(cls.arnak, cls.mini, 30)
+        cls.arnak_standard = cls._require(cls.arnak, cls.standard, 195)
+        cls.arnak_mini = cls._require(cls.arnak, cls.mini, 30)
         CopySleeveStatus.objects.create(
-            copy=cls.arnak, card_size=cls.standard,
+            copy=cls.arnak, requirement=cls.arnak_standard,
             status=CopySleeveStatus.Status.TO_SLEEVE,
         )
         # Roam: already sleeved, with the product recorded.
         cls.roam = cls._copy("Roam")
-        cls._require(cls.roam, cls.standard, 60)
+        cls.roam_standard = cls._require(cls.roam, cls.standard, 60)
         CopySleeveStatus.objects.create(
-            copy=cls.roam, card_size=cls.standard,
+            copy=cls.roam, requirement=cls.roam_standard,
             status=CopySleeveStatus.Status.SLEEVED, product=cls.green,
         )
         # Noise that must never show: someone else's copy, an archived copy.
@@ -8663,11 +8670,15 @@ class SleevesViewTests(SleevesPageMixin, TestCase):
         self.assertContains(response, "3 of 3 card slots")
         self.assertContains(response, "195")
 
-    def test_orphan_status_without_requirement_shows_unknown_count(self):
+    def test_deleting_requirement_removes_its_copy_status(self):
+        # Issue #3: a status can't outlive the requirement it's keyed to —
+        # deleting the requirement cascades, so the row disappears entirely
+        # rather than showing an unknown card count.
         SleeveRequirement.objects.filter(edition=self.roam.edition).delete()
+        self.assertFalse(CopySleeveStatus.objects.filter(copy=self.roam).exists())
         response = self.get()
-        self.assertIn(("Roam", "Standard", "sleeved"), self.rows(response))
-        self.assertContains(response, ">?</td>", html=False)
+        self.assertNotIn(("Roam", "Standard", "sleeved"), self.rows(response))
+        self.assertContains(response, "2 of 2 card slots")
 
     def test_status_filter(self):
         response = self.get({"show": "to_sleeve"})
@@ -8918,17 +8929,18 @@ class SleeveStatusEditTests(SleevesPageMixin, TestCase):
     """§5 in-place worklist editing: per-copy per-size status (and the
     product used), owner+active scoped, row created on first edit."""
 
-    def post(self, data, copy=None, size=None):
+    def post(self, data, copy=None, requirement=None):
         self.login()
         return self.client.post(
             f"/sleeves/copies/{(copy or self.arnak).pk}"
-            f"/sizes/{(size or self.standard).pk}/",
+            f"/requirements/{(requirement or self.arnak_standard).pk}/",
             data,
         )
 
     def test_anonymous_is_sent_to_login(self):
         response = self.client.post(
-            f"/sleeves/copies/{self.arnak.pk}/sizes/{self.standard.pk}/", {},
+            f"/sleeves/copies/{self.arnak.pk}"
+            f"/requirements/{self.arnak_standard.pk}/", {},
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn("/accounts/login/", response["Location"])
@@ -8936,7 +8948,8 @@ class SleeveStatusEditTests(SleevesPageMixin, TestCase):
     def test_get_is_not_allowed(self):
         self.login()
         response = self.client.get(
-            f"/sleeves/copies/{self.arnak.pk}/sizes/{self.standard.pk}/",
+            f"/sleeves/copies/{self.arnak.pk}"
+            f"/requirements/{self.arnak_standard.pk}/",
         )
         self.assertEqual(response.status_code, 405)
 
@@ -8950,14 +8963,15 @@ class SleeveStatusEditTests(SleevesPageMixin, TestCase):
         response = self.post({"status": "sleeved"}, copy=archived)
         self.assertEqual(response.status_code, 404)
 
-    def test_unknown_size_is_404(self):
-        response = self.post({"status": "sleeved"}, size=CardSize(pk=99999))
+    def test_unknown_requirement_is_404(self):
+        response = self.post(
+            {"status": "sleeved"}, requirement=SleeveRequirement(pk=99999))
         self.assertEqual(response.status_code, 404)
 
     def test_status_change_resorts_the_table(self):
         response = self.post({"status": "sleeved"})
         status = CopySleeveStatus.objects.get(
-            copy=self.arnak, card_size=self.standard,
+            copy=self.arnak, requirement=self.arnak_standard,
         )
         self.assertEqual(status.status, CopySleeveStatus.Status.SLEEVED)
         # Sleeved rows sink below the remaining work.
@@ -8966,8 +8980,9 @@ class SleeveStatusEditTests(SleevesPageMixin, TestCase):
 
     def test_first_edit_creates_the_status_row(self):
         # Arnak's minis have a requirement but no status row yet.
-        self.post({"status": "to_sleeve"}, size=self.mini)
-        status = CopySleeveStatus.objects.get(copy=self.arnak, card_size=self.mini)
+        self.post({"status": "to_sleeve"}, requirement=self.arnak_mini)
+        status = CopySleeveStatus.objects.get(
+            copy=self.arnak, requirement=self.arnak_mini)
         self.assertEqual(status.status, CopySleeveStatus.Status.TO_SLEEVE)
 
     def test_unknown_status_is_rejected(self):
@@ -8977,7 +8992,7 @@ class SleeveStatusEditTests(SleevesPageMixin, TestCase):
     def test_product_used_is_recorded_and_cleared(self):
         self.post({"product": str(self.green.pk)})
         status = CopySleeveStatus.objects.get(
-            copy=self.arnak, card_size=self.standard,
+            copy=self.arnak, requirement=self.arnak_standard,
         )
         self.assertEqual(status.product, self.green)
 
@@ -9025,10 +9040,13 @@ class GameDetailSleeveCardTests(SleevesPageMixin, TestCase):
         # Read-only here: editing lives on the copy edit page.
         self.assertNotContains(response, "sleeve-status-select")
 
-    def test_orphan_status_shows_unknown_count(self):
+    def test_deleting_requirement_hides_the_card(self):
+        # Issue #3: no requirement means no row (the cascade-deleted status
+        # leaves nothing to show), so the card disappears like any other copy
+        # with no card sizes or statuses.
         SleeveRequirement.objects.filter(edition=self.roam.edition).delete()
         response = self.get(self.roam)
-        self.assertContains(response, ">?</td>", html=False)
+        self.assertEqual(response.context["sleeve_copies"], [])
 
     def test_card_absent_without_owned_rows(self):
         # Pavel's copy of his own game — the viewer owns nothing here.
@@ -9047,11 +9065,11 @@ class CopyEditSleeveCardTests(SleevesPageMixin, TestCase):
         self.login()
         return self.client.get(f"/copies/{(copy or self.arnak).pk}/edit/")
 
-    def post(self, data=None, copy=None, size=None):
+    def post(self, data=None, copy=None, requirement=None):
         self.login()
         return self.client.post(
             f"/sleeves/copies/{(copy or self.arnak).pk}"
-            f"/sizes/{(size or self.standard).pk}/",
+            f"/requirements/{(requirement or self.arnak_standard).pk}/",
             {"scope": "copy", **(data or {})},
         )
 
@@ -9069,8 +9087,9 @@ class CopyEditSleeveCardTests(SleevesPageMixin, TestCase):
         self.assertNotContains(response, 'id="copy-sleeves"')
 
     def test_scope_copy_returns_just_this_copys_editable_rows(self):
-        response = self.post({"status": "sleeved"}, size=self.mini)
-        status = CopySleeveStatus.objects.get(copy=self.arnak, card_size=self.mini)
+        response = self.post({"status": "sleeved"}, requirement=self.arnak_mini)
+        status = CopySleeveStatus.objects.get(
+            copy=self.arnak, requirement=self.arnak_mini)
         self.assertEqual(status.status, CopySleeveStatus.Status.SLEEVED)
         # Copy-scoped re-render: no Game column, no other copy leaks in, and it
         # stays editable.
