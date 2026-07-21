@@ -57,6 +57,7 @@ from gamekeeper.models import (
     CardSize,
     Copy,
     CopySleeveStatus,
+    Designer,
     DigitalImplementation,
     Document,
     Edition,
@@ -3836,6 +3837,7 @@ THING_XML = """<?xml version="1.0" encoding="utf-8"?>
     <minplaytime value="5"/>
     <maxplaytime value="30"/>
     <link type="boardgamemechanic" id="2023" value="Cooperative Game"/>
+    <link type="boardgamedesigner" id="87462" value="Phil Walker-Harding"/>
     <link type="boardgameexpansion" id="228552" value="5-Minute Dungeon: Curses! Foiled Again!"/>
     <statistics page="1">
       <ratings>
@@ -4115,6 +4117,18 @@ class BggParserTests(TestCase):
         self.assertEqual(items[207830]["mechanics"], ["Cooperative Game"])
         # No boardgamemechanic link on this item.
         self.assertEqual(items[337627]["mechanics"], [])
+
+    def test_parse_things_extracts_designers(self):
+        """Issue #19: designers carry id + name, unlike mechanics — BGG's
+        boardgamedesigner link has a stable id to dedupe on."""
+        items = parse_things(THING_XML)
+
+        self.assertEqual(
+            items[207830]["designers"],
+            [{"bgg_id": 87462, "name": "Phil Walker-Harding"}],
+        )
+        # No boardgamedesigner link on this item.
+        self.assertEqual(items[337627]["designers"], [])
 
     def test_parse_things_extracts_inbound_expansion_links(self):
         """Issue #40: an expansion's boardgameexpansion links with
@@ -5198,6 +5212,16 @@ class SyncBggTests(TestCase):
             ["Cooperative Game"],
         )
         self.assertIn("mechanic tags added: 1", output)
+        # Issue #19: designers land via the thing pass too, deduped by
+        # bgg_designer_id.
+        self.assertEqual(
+            [designer.name for designer in self.game.designers.all()],
+            ["Phil Walker-Harding"],
+        )
+        self.assertEqual(
+            Designer.objects.get(name="Phil Walker-Harding").bgg_designer_id, 87462,
+        )
+        self.assertIn("designers added: 1", output)
 
         # Not in the BGG collection, still backfilled via the thing pass.
         self.voidfall.refresh_from_db()
@@ -5208,6 +5232,8 @@ class SyncBggTests(TestCase):
         # Voidfall's thing item carries no boardgamemechanic link.
         self.assertFalse(
             self.voidfall.game_tags.filter(tag__kind=Tag.Kind.MECHANIC).exists())
+        # Voidfall's thing item carries no boardgamedesigner link either.
+        self.assertFalse(self.voidfall.designers.exists())
 
     def test_mechanic_tags_are_reconciled_not_just_added(self):
         """DESIGN §10: mechanics are fully BGG-driven (unlike expands), so a
@@ -5223,6 +5249,35 @@ class SyncBggTests(TestCase):
             if gt.tag.kind == Tag.Kind.MECHANIC
         )
         self.assertEqual(mechanic_names, ["Cooperative Game"])
+
+    def test_designers_are_reconciled_not_just_added(self):
+        """Issue #19: designers are fully BGG-driven, so a designer BGG no
+        longer credits on a game is removed, not kept."""
+        stale_designer = Designer.objects.create(
+            name="Stale Designer", bgg_designer_id=999,
+        )
+        self.game.designers.add(stale_designer)
+
+        self.run_sync()
+
+        self.game.refresh_from_db()
+        self.assertEqual(
+            [designer.name for designer in self.game.designers.all()],
+            ["Phil Walker-Harding"],
+        )
+
+    def test_designers_are_shared_across_games_by_bgg_id(self):
+        """Issue #19: the same BGG designer id should resolve to one shared
+        Designer row across games, not a duplicate per game."""
+        self.game.designers.add(
+            Designer.objects.create(
+                name="Phil Walker-Harding", bgg_designer_id=87462,
+            ),
+        )
+
+        self.run_sync()
+
+        self.assertEqual(Designer.objects.filter(bgg_designer_id=87462).count(), 1)
 
     def test_app_only_data_is_untouched(self):
         self.run_sync()
@@ -7880,8 +7935,8 @@ class CurationViewTests(TestCase):
         cls._copy("Pavel's Problem", owner=cls.other, excitement="0.5")
 
     @classmethod
-    def _copy(cls, name, owner=None, **fields):
-        game = Game.objects.create(name=name)
+    def _copy(cls, name, owner=None, game_type=Game.Type.BASE, **fields):
+        game = Game.objects.create(name=name, type=game_type)
         edition = Edition.objects.create(game=game, is_default=True)
         return Copy.objects.create(
             owner=owner or cls.user, edition=edition, **fields,
@@ -8063,6 +8118,23 @@ class CurationViewTests(TestCase):
         self.assertEqual(columns["excitement"]["next_sort"], "excitement")
         self.assertIsNone(columns["name"]["direction"])
         self.assertEqual(columns["name"]["next_sort"], "name")
+
+    def test_expansions_hidden_by_default(self):
+        # Issue #39: expansions clutter the cull list — hidden by default,
+        # same as immune copies, and still counted toward the total.
+        self._copy(
+            "Expansion Pack", game_type=Game.Type.EXPANSION, excitement="0.1",
+        )
+        response = self.get()
+        self.assertNotIn("Expansion Pack", self.names(response))
+        self.assertContains(response, "3 of 5 active copies")
+
+    def test_show_expansions_toggle_includes_expansions(self):
+        self._copy(
+            "Expansion Pack", game_type=Game.Type.EXPANSION, excitement="0.1",
+        )
+        response = self.get({"show_expansions": "1"})
+        self.assertIn("Expansion Pack", self.names(response))
 
 
 class CurationEditTests(TestCase):
@@ -9142,6 +9214,9 @@ class GameDetailViewTests(TestCase):
         )
         theme = Tag.objects.create(kind=Tag.Kind.THEME, name="Fantasy")
         GameTag.objects.create(game=cls.game, tag=theme, is_favourite=True)
+        cls.game.designers.add(
+            Designer.objects.create(name="Phil Walker-Harding", bgg_designer_id=87462),
+        )
         GameType.objects.create(
             game=cls.game,
             game_type=GameType.Type.SOLO,
@@ -9201,6 +9276,11 @@ class GameDetailViewTests(TestCase):
         self.assertContains(response, "Scenarios")
         self.assertContains(response, "easy (goals only, coop)")
         self.assertContains(response, "0 / 3")
+        self.assertContains(response, "Phil Walker-Harding")  # issue #19
+
+    def test_designer_chips_absent_when_game_has_none(self):
+        self.game.designers.clear()
+        self.assertNotContains(self.get(), "Phil Walker-Harding")
 
     def test_will_leave_copy_shows_a_distinct_leaving_badge(self):
         # Issue #82: WILL_LEAVE gets its own badge, not the generic keep-

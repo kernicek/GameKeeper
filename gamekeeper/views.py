@@ -1360,6 +1360,7 @@ def _curation_context(user, data, frozen_order=None):
     filters = {
         "show_immune": bool(data.get("show_immune")),
         "keep": data.get("keep") or "",
+        "show_expansions": bool(data.get("show_expansions")),
     }
     # Issue #40: a clicked column header, empty by default (cull-priority).
     sort = data.get("sort") or ""
@@ -1376,6 +1377,10 @@ def _curation_context(user, data, frozen_order=None):
         copies = copies.filter(immune=False)
     if filters["keep"]:
         copies = copies.filter(keep_status=filters["keep"])
+    # Issue #39: expansions clutter the cull list — hide them by default,
+    # same opt-in toggle idiom as show_immune above.
+    if not filters["show_expansions"]:
+        copies = copies.filter(edition__game__type=Game.Type.BASE)
 
     if frozen_order:
         order_index = {pk: i for i, pk in enumerate(frozen_order)}
@@ -2733,7 +2738,7 @@ def game_detail(request, pk):
             # Issue #98: each expansion row/badge renders short_name, which
             # strips its base name — prefetch the reverse link to avoid N+1.
             "expansions__expands", "expansions__game_types",
-            "game_types", "game_tags__tag", "families",
+            "game_types", "game_tags__tag", "families", "designers",
             "digital_implementations", "bgg_links", "external_links",
             "editions__copies__location", "editions__copies__owner",
             "editions__copies__loans", "expansions__editions__copies__loans",

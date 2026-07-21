@@ -122,6 +122,14 @@
         </div>
         {% endif %}
 
+        {% if game.designers.all %}
+        <div class="mb-2">
+            {% for designer in game.designers.all %}
+            <span class="badge text-bg-dark">{{ designer.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="mb-2">
             {% if game.is_campaign %}<span class="badge text-bg-success">Campaign</span>{% endif %}
             {% if game.is_legacy %}<span class="badge text-bg-success">Legacy</span>{% endif %}
