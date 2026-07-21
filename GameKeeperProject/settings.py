@@ -269,5 +269,13 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
+        # Unhandled view exceptions (500s): Django's own default only routes
+        # these to mail_admins (a no-op without ADMINS set) plus console when
+        # DEBUG=True, so production would otherwise log nothing at all.
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
     },
 }

@@ -4843,6 +4843,21 @@ class SettingsEmailTestButtonTests(TestCase):
         self.assertNotContains(response, "Couldn't send the test email")
 
 
+class RequestErrorLoggingTests(TestCase):
+    """Unhandled view exceptions (500s) must be logged via the standard
+    'django.request' logger (issue #30) — in production DEBUG=False
+    disables Django's default console handler and ADMINS is never set, so
+    without this nothing would land in docker logs at all."""
+
+    def test_unhandled_exception_is_logged_via_django_request(self):
+        get_user_model().objects.create_user(username="kernicek", password="pass")
+        self.client.login(username="kernicek", password="pass")
+        with mock.patch("gamekeeper.views.render", side_effect=RuntimeError("boom")):
+            with self.assertLogs("django.request", level="ERROR"):
+                with self.assertRaises(RuntimeError):
+                    self.client.get("/dashboard/")
+
+
 class SettingsNavbarDropdownTests(TestCase):
     """Issue #137: account actions live under one far-right username dropdown,
     with Sharing (owner-only) and Tools (superuser-only) folded in."""
@@ -4978,10 +4993,11 @@ class PushBggStatusTests(TestCase):
         client = self._client({"collid": 999, "status": {}})
         client.put_collection_item.side_effect = BggError("BGG kept answering 503.")
 
-        result = push_bgg_status(
-            self.game, Game.BggCollectionStatus.PREV_OWNED,
-            client=client, user=self.user,
-        )
+        with self.assertLogs("gamekeeper.bgg_sync", level="WARNING"):
+            result = push_bgg_status(
+                self.game, Game.BggCollectionStatus.PREV_OWNED,
+                client=client, user=self.user,
+            )
 
         self.assertFalse(result.ok)
         self.assertIn("503", result.error)
@@ -4996,9 +5012,10 @@ class PushBggStatusTests(TestCase):
     def test_auth_failure_is_reported_like_any_other_failure(self):
         client = self._client()
         client.get_collection_item.side_effect = BggAuthError("refused (401)")
-        result = push_bgg_status(
-            self.game, Game.BggCollectionStatus.OWN, client=client, user=self.user,
-        )
+        with self.assertLogs("gamekeeper.bgg_sync", level="WARNING"):
+            result = push_bgg_status(
+                self.game, Game.BggCollectionStatus.OWN, client=client, user=self.user,
+            )
         self.assertFalse(result.ok)
         self.assertIn("401", result.error)
 
@@ -5107,7 +5124,8 @@ class PushBggFortradeTests(TestCase):
         client = self._client({"collid": 999, "status": {"own": True}})
         client.put_collection_item.side_effect = BggError("BGG kept answering 503.")
 
-        result = push_bgg_fortrade(self.game, True, client=client, user=self.user)
+        with self.assertLogs("gamekeeper.bgg_sync", level="WARNING"):
+            result = push_bgg_fortrade(self.game, True, client=client, user=self.user)
 
         self.assertFalse(result.ok)
         self.assertIn("503", result.error)
@@ -6184,9 +6202,10 @@ class GameBggSyncViewTests(TestCase):
 
     def test_login_failure_reports_error_and_writes_nothing(self):
         self.client.login(username="kernicek", password="pass")
-        response, _ = self.post_sync(
-            login_error=BggAuthError("BGG login failed: bad credentials"),
-        )
+        with self.assertLogs("gamekeeper.bgg_sync", level="WARNING"):
+            response, _ = self.post_sync(
+                login_error=BggAuthError("BGG login failed: bad credentials"),
+            )
         self.game.refresh_from_db()
         self.assertContains(response, "BGG login failed")
         self.assertEqual(self.game.bgg_name, "")
@@ -6194,9 +6213,10 @@ class GameBggSyncViewTests(TestCase):
 
     def test_throttle_reports_error_and_writes_nothing(self):
         self.client.login(username="kernicek", password="pass")
-        response, _ = self.post_sync(
-            collection_error=BggError("BGG kept answering 429 after 7 attempts."),
-        )
+        with self.assertLogs("gamekeeper.bgg_sync", level="WARNING"):
+            response, _ = self.post_sync(
+                collection_error=BggError("BGG kept answering 429 after 7 attempts."),
+            )
         self.game.refresh_from_db()
         self.assertContains(response, "BGG sync failed")
         self.assertEqual(self.game.bgg_name, "")
@@ -6645,13 +6665,24 @@ class BggImportViewTests(TestCase):
 
     def test_preview_bgg_failure_shows_error_and_writes_nothing(self):
         self.client.login(username="kernicek", password="pass")
-        response, _, _ = self.preview(
-            login_error=BggAuthError("BGG login failed: bad credentials"),
-        )
+        with self.assertLogs("gamekeeper.bgg_sync", level="WARNING"):
+            response, _, _ = self.preview(
+                login_error=BggAuthError("BGG login failed: bad credentials"),
+            )
         self.assertContains(response, "BGG login failed")
         self.assertEqual(Game.objects.count(), 0)
 
     # --- confirm ------------------------------------------------------------
+
+    def test_confirm_login_failure_reports_error_and_creates_nothing(self):
+        self.client.login(username="kernicek", password="pass")
+        with self.assertLogs("gamekeeper.bgg_sync", level="WARNING"):
+            response, _, _ = self.post_import(
+                {"step": "import", "include": ["101"], "action_101": "copy"},
+                login_error=BggError("BGG kept answering 503."),
+            )
+        self.assertContains(response, "BGG login failed")
+        self.assertEqual(Game.objects.count(), 0)
 
     def test_confirm_creates_game_edition_and_active_copy(self):
         self.client.login(username="kernicek", password="pass")
