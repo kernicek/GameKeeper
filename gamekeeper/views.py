@@ -1283,6 +1283,64 @@ def _cull_priority(copy):
     )
 
 
+# Issue #40: user-driven sorting for the curation table, independent of the
+# _cull_priority default above. Order here IS the column order in
+# cull_table.html's <thead> — the template loops this list for its first
+# four headers, same idiom as _SORT_COLUMNS/game_list.html.
+_CURATION_SORT_COLUMNS = [
+    ("name", "Game"), ("last_played", "Last played"),
+    ("excitement", "Excitement"), ("keep", "Keep"),
+]
+_CURATION_SORT_KEY_FUNCS = {
+    "name": lambda copy: copy.edition.game.name,
+    "excitement": lambda copy: copy.excitement,
+    "keep": lambda copy: copy.get_keep_status_display() or None,
+    "last_played": lambda copy: copy.last_played,
+}
+
+
+def _sort_copies_for_curation(copies, sort):
+    """Reorder curation copies by a "col"/"-col" sort spec from the query
+    string (issue #40). Missing values sink to the bottom regardless of
+    direction, same as the collection list's _sort_tiles_for_list — except
+    last_played, where "never played" is the most cull-relevant state, not a
+    data gap: it's treated as infinitely long ago via a date.min sentinel, so
+    it sorts first on ascending (oldest-first) and last on descending."""
+    column = sort[1:] if sort.startswith("-") else sort
+    descending = sort.startswith("-")
+    key_func = _CURATION_SORT_KEY_FUNCS.get(column)
+    if key_func is None:
+        return sorted(copies, key=_cull_priority)
+    if column == "last_played":
+        return sorted(
+            copies, key=lambda c: key_func(c) or datetime.date.min, reverse=descending,
+        )
+    present = [c for c in copies if key_func(c) is not None]
+    missing = [c for c in copies if key_func(c) is None]
+    present.sort(key=key_func, reverse=descending)
+    return present + missing
+
+
+def _curation_sort_column_context(sort):
+    """Per-column header state for cull_table.html: label, the sort spec a
+    click on this header should request next, and the arrow to show now.
+    None of the columns match an empty sort, so no header shows as active
+    when the table is at its default cull-priority order."""
+    active_column = sort[1:] if sort.startswith("-") else sort
+    active_descending = sort.startswith("-")
+    context = []
+    for key, label in _CURATION_SORT_COLUMNS:
+        active = key == active_column
+        is_descending = active and active_descending
+        context.append({
+            "key": key,
+            "label": label,
+            "next_sort": key if is_descending else (f"-{key}" if active else key),
+            "direction": "desc" if is_descending else ("asc" if active else None),
+        })
+    return context
+
+
 def _curation_context(user, data, frozen_order=None):
     """Cull table context for the given filter params (a GET or POST
     QueryDict — the edit endpoint hx-include's the filter form into its POST
@@ -1304,12 +1362,16 @@ def _curation_context(user, data, frozen_order=None):
         "keep": data.get("keep") or "",
         "show_expansions": bool(data.get("show_expansions")),
     }
+    # Issue #40: a clicked column header, empty by default (cull-priority).
+    sort = data.get("sort") or ""
 
     # Issue #43: you can't cull what you don't own — a borrowed-in copy
     # never appears among cull candidates.
     copies = Copy.objects.filter(
         owner=user, archive_status=Copy.ArchiveStatus.ACTIVE, is_borrowed_in=False,
-    ).select_related("edition__game", "location")
+    ).select_related("edition__game", "location").annotate(
+        last_played=Max("edition__game__plays__play_date"),
+    )
     total_count = copies.count()
     if not filters["show_immune"]:
         copies = copies.filter(immune=False)
@@ -1326,8 +1388,18 @@ def _curation_context(user, data, frozen_order=None):
             copies,
             key=lambda c: (order_index.get(c.pk, len(frozen_order)), _cull_priority(c)),
         )
+    elif sort:
+        copies = _sort_copies_for_curation(copies, sort)
     else:
         copies = sorted(copies, key=_cull_priority)
+
+    # Issue #40: view-computed day delta, same convention as
+    # _ending_soon_rows's days_left — the template just renders the number.
+    today = timezone.localdate()
+    for copy in copies:
+        copy.last_played_days_ago = (
+            (today - copy.last_played).days if copy.last_played else None
+        )
 
     return {
         "copies": copies,
@@ -1336,6 +1408,8 @@ def _curation_context(user, data, frozen_order=None):
         "filters": filters,
         "keep_status_choices": Copy.KeepStatus.choices,
         "frozen_order": ",".join(str(c.pk) for c in copies),
+        "sort": sort,
+        "sort_columns": _curation_sort_column_context(sort),
     }
 
 
