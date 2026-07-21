@@ -6,8 +6,9 @@ where parsed BGG data meets the Game model. It owns the single source of truth
 for WHICH fields a sync may write (`BGG_SYNCED_FIELDS`), the write helper that
 enforces it (`apply_bgg_fields`), the add-only expansion linking
 (`link_expansion_bases`, issue #40), the BGG-driven mechanic tag reconcile
-(`sync_mechanic_tags`, DESIGN §10), the single-game engine (`sync_game`) and
-its create-from-id counterpart (`create_game_from_bgg`, issue #55).
+(`sync_mechanic_tags`, DESIGN §10), the designer reconcile (`sync_designers`,
+issue #19), the single-game engine (`sync_game`) and its create-from-id
+counterpart (`create_game_from_bgg`, issue #55).
 
 Rules never change between the bulk and per-game paths: only the §8 BGG-synced
 fields plus `last_synced_at` are ever written; curated app data (name, curation,
@@ -32,7 +33,8 @@ from gamekeeper.bgg import (
     parse_plays, parse_plays_error,
 )
 from gamekeeper.models import (
-    BggLink, BggSyncDiff, Copy, Edition, Game, GameTag, Play, PlayPlayer, Tag,
+    BggLink, BggSyncDiff, Copy, Designer, Edition, Game, GameTag, Play,
+    PlayPlayer, Tag,
 )
 
 # The only Game fields a sync may write (besides last_synced_at).
@@ -218,6 +220,33 @@ def sync_mechanic_tags(game, mechanic_names):
         if tag_id not in wanted_pks:
             game_tag.delete()
             removed += 1
+    return added, removed
+
+
+def sync_designers(game, designers):
+    """Reconcile game's Designer M2M to exactly match the thing payload's
+    designer list (issue #19). Like mechanics, BGG is the sole source, so
+    this both adds and removes. Unlike mechanics, designers dedupe by BGG id
+    (`bgg_designer_id`), not name — the thing payload's boardgamedesigner
+    links carry a stable id. `designers` is the parsed list of
+    {"bgg_id", "name"} dicts from `parse_things`. Returns (added, removed)."""
+    resolved = [
+        Designer.objects.get_or_create(
+            bgg_designer_id=entry["bgg_id"], defaults={"name": entry["name"]},
+        )[0]
+        for entry in designers
+    ]
+    wanted_pks = {designer.pk for designer in resolved}
+    current = set(game.designers.values_list("pk", flat=True))
+    added = 0
+    for designer in resolved:
+        if designer.pk not in current:
+            game.designers.add(designer)
+            added += 1
+    removed = 0
+    for pk in current - wanted_pks:
+        game.designers.remove(pk)
+        removed += 1
     return added, removed
 
 
