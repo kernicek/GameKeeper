@@ -16,6 +16,7 @@ sleeves, purchases) is untouchable; BGG values overwrite previous BGG values, so
 a re-sync of unchanged data is idempotent (but still refreshes `last_synced_at`).
 """
 
+import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -36,6 +37,8 @@ from gamekeeper.models import (
     BggLink, BggSyncDiff, Copy, Designer, Edition, Game, GameTag, Play,
     PlayPlayer, Tag,
 )
+
+logger = logging.getLogger(__name__)
 
 # The only Game fields a sync may write (besides last_synced_at).
 BGG_SYNCED_FIELDS = frozenset({
@@ -397,9 +400,11 @@ def sync_game(game, *, now=None, client=None, user=None):
         flags = parse_collection_status_flags(xml)
     except BggAuthError as error:
         result.error = str(error)
+        logger.warning("sync_game(%s) failed: %s", bgg_id, error)
         return result
     except (BggError, requests.RequestException) as error:
         result.error = f"BGG sync failed: {error}"
+        logger.warning("sync_game(%s) failed: %s", bgg_id, error, exc_info=True)
         return result
 
     # Expansion links live on the anonymous geekitems JSON — only expansions
@@ -648,9 +653,14 @@ def fetch_collection_candidates(bgg_username, statuses, *, user=None):
                 flags.setdefault(bgg_id, item_flags)
     except BggAuthError as error:
         preview.error = str(error)
+        logger.warning("fetch_collection_candidates(%s) failed: %s", bgg_username, error)
         return preview
     except (BggError, requests.RequestException) as error:
         preview.error = f"BGG collection fetch failed: {error}"
+        logger.warning(
+            "fetch_collection_candidates(%s) failed: %s", bgg_username, error,
+            exc_info=True,
+        )
         return preview
 
     linked = {}
@@ -764,6 +774,7 @@ def import_collection_items(user, items, *, now=None, fortrade_ids=frozenset()):
         client.login()
     except (BggError, requests.RequestException) as error:
         report.error = f"BGG login failed: {error}"
+        logger.warning("import_collection_items login failed: %s", error, exc_info=True)
         return report
 
     for bgg_id, action in items:
@@ -973,10 +984,12 @@ def push_bgg_status(game, new_status, *, priority=None, now=None, client=None, u
     except BggAuthError as error:
         result.error = str(error)
         record_push_failure(game, user, f"Push failed: {error}")
+        logger.warning("push_bgg_status(%s) failed: %s", bgg_id, error)
         return result
     except (BggError, requests.RequestException) as error:
         result.error = f"BGG push failed: {error}"
         record_push_failure(game, user, result.error)
+        logger.warning("push_bgg_status(%s) failed: %s", bgg_id, error, exc_info=True)
         return result
 
     with transaction.atomic():
@@ -1059,10 +1072,12 @@ def push_bgg_fortrade(game, fortrade, *, now=None, client=None, user=None):
     except BggAuthError as error:
         result.error = str(error)
         record_push_failure(game, user, f"Push failed: {error}")
+        logger.warning("push_bgg_fortrade(%s) failed: %s", bgg_id, error)
         return result
     except (BggError, requests.RequestException) as error:
         result.error = f"BGG push failed: {error}"
         record_push_failure(game, user, result.error)
+        logger.warning("push_bgg_fortrade(%s) failed: %s", bgg_id, error, exc_info=True)
         return result
 
     with transaction.atomic():

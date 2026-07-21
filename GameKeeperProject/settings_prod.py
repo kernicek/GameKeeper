@@ -70,6 +70,7 @@ LOGGING['handlers']['file'] = {  # noqa: F405
     'delay': True,
 }
 LOGGING['loggers']['gamekeeper']['handlers'] = ['console', 'file']  # noqa: F405
+LOGGING['loggers']['django.request']['handlers'] = ['console', 'file']  # noqa: F405
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
