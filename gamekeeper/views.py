@@ -513,19 +513,21 @@ SLEEVE_STATUS_ORDER = {
 }
 
 
-def _sleeve_row(copy, card_size, count, status, products):
+def _sleeve_row(copy, requirement, status, products):
     """One row for the shared sleeve table (partials/sleeve_table.html), used
     by the §5 worklist, the game-detail read-only card, and the copy-edit
     editable card (issue #17). A slot with no CopySleeveStatus row yet renders
-    (and edits) as not-sleeved; a status row whose requirement was deleted has
-    no card count. Carries both the raw status value + product_id (editable
-    selects) and the display label + product object (read-only cells) so the
-    one partial serves every site."""
+    (and edits) as not-sleeved. Every row is anchored to a SleeveRequirement
+    (issue #3) — a status can't outlive its requirement, so there's no
+    unknown-count case to handle. Carries both the raw status value +
+    product_id (editable selects) and the display label + product object
+    (read-only cells) so the one partial serves every site."""
     default = CopySleeveStatus.Status.NOT_SLEEVED
     return {
         "copy": copy,
-        "card_size": card_size,
-        "count": count,
+        "requirement": requirement,
+        "card_size": requirement.card_size,
+        "count": requirement.count,
         "status": status.status if status else default,
         "status_label": status.get_status_display() if status else default.label,
         "product": status.product if status else None,
@@ -551,11 +553,10 @@ def _sleeve_inventory_context(user):
 
 
 def _sleeve_status_context(user, data):
-    """Per-copy, per-CardSize sleeving worklist (DESIGN §5): the owner's
-    active copies crossed with their editions' sleeve requirements, joined
-    with the CopySleeveStatus rows. Slots without a status row yet render
-    (and edit) as not-sleeved; status rows whose requirement was deleted
-    still show, with an unknown card count."""
+    """Per-copy, per-SleeveRequirement sleeving worklist (DESIGN §5): the
+    owner's active copies crossed with their editions' sleeve requirements,
+    joined with the CopySleeveStatus rows. Slots without a status row yet
+    render (and edit) as not-sleeved."""
     # The status filter is named show (not status) so the hx-include'd
     # filter form can never collide with the row selects' status edit param
     # (same convention as curation's show_immune).
@@ -577,8 +578,8 @@ def _sleeve_status_context(user, data):
     statuses = defaultdict(dict)
     for status in CopySleeveStatus.objects.filter(
         copy__owner=user, copy__archive_status=Copy.ArchiveStatus.ACTIVE,
-    ).select_related("card_size"):
-        statuses[status.copy_id][status.card_size_id] = status
+    ).select_related("requirement__card_size"):
+        statuses[status.copy_id][status.requirement_id] = status
 
     products_by_size = defaultdict(list)
     for product in SleeveProduct.objects.order_by("brand", "name"):
@@ -586,20 +587,13 @@ def _sleeve_status_context(user, data):
 
     rows = []
 
-    def add_row(copy, card_size, count, status):
-        rows.append(_sleeve_row(
-            copy, card_size, count, status, products_by_size.get(card_size.pk, []),
-        ))
-
     for copy in copies:
-        seen = set()
         for requirement in requirements.get(copy.edition_id, []):
-            status = statuses[copy.pk].get(requirement.card_size_id)
-            add_row(copy, requirement.card_size, requirement.count, status)
-            seen.add(requirement.card_size_id)
-        for size_id, status in statuses[copy.pk].items():
-            if size_id not in seen:
-                add_row(copy, status.card_size, None, status)
+            status = statuses[copy.pk].get(requirement.pk)
+            rows.append(_sleeve_row(
+                copy, requirement, status,
+                products_by_size.get(requirement.card_size_id, []),
+            ))
 
     sizes = sorted(
         {row["card_size"].pk: row["card_size"] for row in rows}.values(),
@@ -629,32 +623,22 @@ def _sleeve_status_context(user, data):
 def _copy_sleeve_rows(copy, edition=None):
     """Size-ordered sleeve rows for a single copy (issue #17): the same
     requirement-joined-with-status logic as the §5 worklist, scoped to one
-    copy. Requirement slots come first (unknown-count orphan status rows last),
-    sorted by card size. Reuses the copy's already-loaded edition when the
-    caller passes it (game_detail prefetches editions), else falls back to the
-    FK."""
+    copy. Reuses the copy's already-loaded edition when the caller passes it
+    (game_detail prefetches editions), else falls back to the FK."""
     edition = edition or copy.edition
     products_by_size = defaultdict(list)
     for product in SleeveProduct.objects.order_by("brand", "name"):
         products_by_size[product.card_size_id].append(product)
     statuses = {
-        status.card_size_id: status
-        for status in copy.sleeve_statuses.select_related("card_size", "product")
+        status.requirement_id: status
+        for status in copy.sleeve_statuses.select_related("requirement", "product")
     }
-    rows, seen = [], set()
+    rows = []
     for requirement in edition.sleeve_requirements.select_related("card_size").all():
         rows.append(_sleeve_row(
-            copy, requirement.card_size, requirement.count,
-            statuses.get(requirement.card_size_id),
+            copy, requirement, statuses.get(requirement.pk),
             products_by_size.get(requirement.card_size_id, []),
         ))
-        seen.add(requirement.card_size_id)
-    for size_id, status in statuses.items():
-        if size_id not in seen:
-            rows.append(_sleeve_row(
-                copy, status.card_size, None, status,
-                products_by_size.get(size_id, []),
-            ))
     rows.sort(key=lambda row: (row["card_size"].width_mm, row["card_size"].height_mm))
     return rows
 
@@ -716,16 +700,16 @@ def sleeve_inventory_edit(request, product_pk):
 
 @login_required
 @require_POST
-def sleeve_status_edit(request, copy_pk, size_pk):
-    """In-place editing of one copy's sleeved state for one card size
-    (DESIGN §5), optionally recording which product was used. Owner+active
-    scoped like curation_edit; the status row is created on first edit (the
-    worklist shows requirement slots that have no row yet)."""
+def sleeve_status_edit(request, copy_pk, requirement_pk):
+    """In-place editing of one copy's sleeved state for one sleeve
+    requirement (DESIGN §5), optionally recording which product was used.
+    Owner+active scoped like curation_edit; the status row is created on
+    first edit (the worklist shows requirement slots that have no row yet)."""
     copy = get_object_or_404(
         Copy, pk=copy_pk, owner=request.user,
         archive_status=Copy.ArchiveStatus.ACTIVE,
     )
-    card_size = get_object_or_404(CardSize, pk=size_pk)
+    requirement = get_object_or_404(SleeveRequirement, pk=requirement_pk)
 
     updates = {}
     if "status" in request.POST:
@@ -740,14 +724,14 @@ def sleeve_status_edit(request, copy_pk, size_pk):
         else:
             # Only a product of the right size can have been used.
             product = SleeveProduct.objects.filter(
-                pk=_parse_int(raw), card_size=card_size,
+                pk=_parse_int(raw), card_size=requirement.card_size,
             ).first()
             if product is None:
                 return HttpResponseBadRequest("Unknown sleeve product for this size.")
             updates["product"] = product
     if updates:
         CopySleeveStatus.objects.update_or_create(
-            copy=copy, card_size=card_size, defaults=updates,
+            copy=copy, requirement=requirement, defaults=updates,
         )
 
     # The same endpoint feeds two sites (issue #17): the copy edit card swaps

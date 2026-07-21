@@ -51,7 +51,7 @@ urlpatterns = [
     path('sleeves/', views.sleeves, name='sleeves'),
     path('sleeves/inventory/<int:product_pk>/', views.sleeve_inventory_edit,
          name='sleeve_inventory_edit'),
-    path('sleeves/copies/<int:copy_pk>/sizes/<int:size_pk>/',
+    path('sleeves/copies/<int:copy_pk>/requirements/<int:requirement_pk>/',
          views.sleeve_status_edit, name='sleeve_status_edit'),
     path('purchases/', views.purchases, name='purchases'),
     path('purchases/add/', views.purchase_add, name='purchase_add'),
