@@ -2891,8 +2891,9 @@ class PurchaseEditingTests(TestCase):
     """Issue #5: user-facing purchase editing — the add and edit pages for
     purchases, the per-wave forms and the product line-items. Settled
     pages like copy_edit: whole-form POSTs and redirects, owner-scoped
-    404s, 400s for values the form's own inputs constrain, inline error
-    only for the one mistake a form can't prevent (duplicate name)."""
+    404s, inline (200) errors for bad input (issue #28 moved product_edit
+    onto a ModelForm too — product_add is the one page here still a plain
+    hand-parsed 400, out of #28's scope)."""
 
     @classmethod
     def setUpTestData(cls):
@@ -3281,7 +3282,7 @@ class PurchaseEditingTests(TestCase):
         self.assertIsNone(self.product.game)
         self.assertIsNone(self.product.edition)
 
-    def test_product_edit_bad_values_are_400s(self):
+    def test_product_edit_bad_values_are_rejected_inline(self):
         Product.objects.create(wave=self.wave, name="Taken")
         self.login()
         base = {"name": "Core Box", "kind": "game"}
@@ -3297,7 +3298,18 @@ class PurchaseEditingTests(TestCase):
         ):
             response = self.client.post(
                 f"/products/{self.product.pk}/edit/", {**base, **overrides})
-            self.assertEqual(response.status_code, 400, overrides)
+            self.assertEqual(response.status_code, 200, overrides)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, "Core Box")
+
+        duplicate = self.client.post(
+            f"/products/{self.product.pk}/edit/", {**base, "name": "Taken"})
+        self.assertContains(duplicate, "already has an item with that name")
+
+        bad_url = self.client.post(
+            f"/products/{self.product.pk}/edit/",
+            {**base, "drive_url": "file:///etc/passwd"})
+        self.assertContains(bad_url, "Enter a valid URL.")
 
     def test_product_delete(self):
         self.login()
@@ -11397,17 +11409,24 @@ class GameEditViewTests(TestCase):
         self.assertContains(response, "Alternate names")
         self.assertContains(response, "Safari Bar")
 
-    def test_empty_name_is_400(self):
+    def test_empty_name_is_rejected_inline(self):
         response = self.post(name="   ")
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required.")
 
-    def test_unknown_select_value_is_400(self):
+    def test_unknown_select_value_is_rejected_inline(self):
         response = self.post(language_dependency="klingon")
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice.")
 
-    def test_garbage_and_out_of_range_conflict_are_400(self):
-        self.assertEqual(self.post(player_conflict="abc").status_code, 400)
-        self.assertEqual(self.post(player_conflict="4").status_code, 400)
+    def test_garbage_and_out_of_range_conflict_are_rejected_inline(self):
+        garbage = self.post(player_conflict="abc")
+        self.assertEqual(garbage.status_code, 200)
+        self.assertContains(garbage, "Enter a whole number.")
+
+        out_of_range = self.post(player_conflict="4")
+        self.assertEqual(out_of_range.status_code, 200)
+        self.assertContains(out_of_range, "Player conflict is 0")
 
     def test_expansion_overrides_are_saved_for_expansions_only(self):
         response = self.post(
@@ -11426,12 +11445,13 @@ class GameEditViewTests(TestCase):
         self.game.refresh_from_db()
         self.assertIsNone(self.game.players_min_override)
 
-    def test_zero_players_override_is_400(self):
+    def test_zero_players_override_is_rejected_inline(self):
         response = self.post(
             pk=self.expansion.pk, name="Epic Quest: More Heroes",
             players_min_override="0",
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Players min override must be at least 1.")
 
     def test_series_and_family_selectors_render_for_base_games_only(self):
         response = self.client.get(f"/games/{self.series_primary.pk}/edit/")
@@ -11478,16 +11498,19 @@ class GameEditViewTests(TestCase):
         self.series_member.refresh_from_db()
         self.assertIsNone(self.series_member.series_id)
 
-    def test_changing_the_primary_games_series_is_400(self):
+    def test_changing_the_primary_games_series_is_rejected_inline(self):
         response = self.post(
             pk=self.series_primary.pk, name="Series Primary", series="",
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "change the series")
         self.series_primary.refresh_from_db()
         self.assertEqual(self.series_primary.series_id, self.series.pk)
 
-    def test_unknown_series_value_is_400(self):
-        self.assertEqual(self.post(series="99999").status_code, 400)
+    def test_unknown_series_value_is_rejected_inline(self):
+        response = self.post(series="99999")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice.")
 
     def test_families_are_set_to_exactly_the_posted_pks(self):
         self.game.families.set([self.family.pk])
@@ -11501,8 +11524,10 @@ class GameEditViewTests(TestCase):
         self.game.refresh_from_db()
         self.assertFalse(self.game.families.exists())
 
-    def test_unknown_family_value_is_400(self):
-        self.assertEqual(self.post(families=["99999"]).status_code, 400)
+    def test_unknown_family_value_is_rejected_inline(self):
+        response = self.post(families=["99999"])
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice.")
 
     def test_series_and_families_are_ignored_for_expansions(self):
         response = self.post(
@@ -12239,18 +12264,20 @@ class EditionAddViewTests(TestCase):
         self.assertRedirects(response, f"/games/{self.game.pk}/")
         self.assertEqual(self.game.editions.count(), 2)
 
-    def test_bad_numbers_and_choices_are_400(self):
-        self.assertEqual(self.post(num_boxes="many").status_code, 400)
-        self.assertEqual(self.post(box_length_mm="-5").status_code, 400)
+    def test_bad_numbers_and_choices_are_rejected_inline(self):
+        self.assertEqual(self.post(num_boxes="many").status_code, 200)
+        self.assertEqual(self.post(box_length_mm="-5").status_code, 200)
         self.assertEqual(
-            self.post(components_language="klingon").status_code, 400,
+            self.post(components_language="klingon").status_code, 200,
         )
-        self.assertEqual(self.post(size_category="colossal").status_code, 400)
+        self.assertEqual(self.post(size_category="colossal").status_code, 200)
         self.assertEqual(self.game.editions.count(), 1)
 
     def test_creating_as_default_needs_confirmation_when_one_exists(self):
-        # The modal's ride-along is missing (JS bypassed): 400, no write.
-        self.assertEqual(self.post(is_default="on").status_code, 400)
+        # The modal's ride-along is missing (JS bypassed): rejected inline, no write.
+        response = self.post(is_default="on")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "confirm the switch")
         self.assertEqual(self.game.editions.count(), 1)
 
         response = self.post(is_default="on", confirm_default_switch="1",
@@ -12371,18 +12398,20 @@ class EditionEditViewTests(TestCase):
         self.assertIsNone(self.collectors.num_boxes)
         self.assertIsNone(self.collectors.box_length_mm)
 
-    def test_bad_numbers_and_choices_are_400(self):
-        self.assertEqual(self.post(num_boxes="many").status_code, 400)
-        self.assertEqual(self.post(bgg_version_id="-1").status_code, 400)
+    def test_bad_numbers_and_choices_are_rejected_inline(self):
+        self.assertEqual(self.post(num_boxes="many").status_code, 200)
+        self.assertEqual(self.post(bgg_version_id="-1").status_code, 200)
         self.assertEqual(
-            self.post(components_language="klingon").status_code, 400,
+            self.post(components_language="klingon").status_code, 200,
         )
-        self.assertEqual(self.post(size_category="colossal").status_code, 400)
+        self.assertEqual(self.post(size_category="colossal").status_code, 200)
         self.collectors.refresh_from_db()
         self.assertEqual(self.collectors.num_boxes, 2)
 
     def test_default_switch_needs_confirmation(self):
-        self.assertEqual(self.post(is_default="on").status_code, 400)
+        response = self.post(is_default="on")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "confirm the switch")
         self.default.refresh_from_db()
         self.collectors.refresh_from_db()
         self.assertTrue(self.default.is_default)
@@ -12420,7 +12449,7 @@ class EditionEditViewTests(TestCase):
         self.collectors.save(update_fields=["is_pnp"])
         response = self.client.get(f"/editions/{self.collectors.pk}/edit/")
         self.assertContains(response, 'id="edition-pnp"')
-        self.assertContains(response, 'name="is_pnp" checked')
+        self.assertContains(response, 'id="edition-pnp" checked')
 
     def test_save_sets_and_clears_pnp(self):
         # Absent checkbox on the whole-form POST reads as unchecked (safe here).
@@ -13117,27 +13146,30 @@ class SeriesEditViewTests(TestCase):
         self.assertEqual(self.beasty.series, series)
         self.assertEqual(self.beasty2.series, series)
 
-    def test_blank_name_is_400(self):
+    def test_blank_name_is_rejected_inline(self):
         response = self.add(
             name="  ", primary_game=str(self.beasty.pk),
             members=[str(self.beasty.pk)],
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required.")
         self.assertFalse(Series.objects.filter(primary_game=self.beasty).exists())
 
-    def test_primary_outside_the_members_is_400(self):
+    def test_primary_outside_the_members_is_rejected_inline(self):
         response = self.add(
             name="Beasty Bar", primary_game=str(self.beasty.pk),
             members=[str(self.beasty2.pk)],
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Primary game must be one of the members.")
 
-    def test_member_claimed_by_another_series_is_400(self):
+    def test_member_claimed_by_another_series_is_rejected_inline(self):
         response = self.add(
             name="Beasty Bar", primary_game=str(self.beasty.pk),
             members=[str(self.beasty.pk), str(self.claimed.pk)],
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "valid choice")
         self.claimed.refresh_from_db()
         self.assertEqual(self.claimed.series, self.other_series)
 
@@ -13193,13 +13225,16 @@ class SeriesEditViewTests(TestCase):
         self.assertContains(response, 'id="member-filter"')
         self.assertContains(response, 'data-name="beasty bar ')
 
-    def test_non_image_upload_is_400(self):
+    def test_non_image_upload_is_rejected_inline(self):
+        # Django's ImageField catches "not an image at all" before our own
+        # format/size checks (clean_cover) get a chance to run.
         response = self.add(
             name="Beasty Bar", primary_game=str(self.beasty.pk),
             members=[str(self.beasty.pk)],
             cover=SimpleUploadedFile("art.png", b"not an image at all"),
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload a valid image")
         self.assertFalse(Series.objects.filter(name="Beasty Bar").exists())
 
 
@@ -13682,26 +13717,30 @@ class FamilyEditViewTests(TestCase):
         self.assertEqual(
             set(self.elsewhere.families.all()), {family, self.other_family})
 
-    def test_blank_name_is_400(self):
+    def test_blank_name_is_rejected_inline(self):
         response = self.add(name="  ", members=[str(self.burgle.pk)])
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required.")
         self.assertEqual(Family.objects.count(), 1)  # only the fixture
 
-    def test_non_integer_member_ids_are_400(self):
+    def test_non_integer_member_ids_are_rejected_inline(self):
         response = self.add(name="Fowers heists", members=["abc"])
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Family.objects.filter(name="Fowers heists").exists())
 
-    def test_non_numeric_bgg_family_id_is_400(self):
+    def test_non_numeric_bgg_family_id_is_rejected_inline(self):
         response = self.add(name="Fowers heists", bgg_family_id="soon",
                             members=[str(self.burgle.pk)])
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter a whole number.")
 
-    def test_an_expansion_member_is_400(self):
+    def test_an_expansion_member_is_rejected_inline(self):
         response = self.add(
             name="Fowers heists",
             members=[str(self.burgle.pk), str(self.expansion.pk)],
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "valid choice")
         self.assertFalse(Family.objects.filter(name="Fowers heists").exists())
 
     def test_edit_reconciles_membership_both_ways(self):
@@ -13725,12 +13764,15 @@ class FamilyEditViewTests(TestCase):
         self.assertEqual(family.cover_image.name,
                          f"covers/family-{family.pk}.png")
 
-    def test_non_image_upload_is_400(self):
+    def test_non_image_upload_is_rejected_inline(self):
+        # Django's ImageField catches "not an image at all" before our own
+        # format/size checks (clean_cover) get a chance to run.
         response = self.add(
             name="Fowers heists", members=[str(self.burgle.pk)],
             cover=SimpleUploadedFile("art.png", b"not an image at all"),
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload a valid image")
         self.assertFalse(Family.objects.filter(name="Fowers heists").exists())
 
     def test_edit_page_shows_the_cover_editor_column(self):

@@ -36,25 +36,27 @@
                       action="{% if family %}{% url 'family_edit' family.pk %}{% else %}{% url 'family_add' %}{% endif %}">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label class="form-label" for="family-name">Name</label>
-                        <input class="form-control" type="text" id="family-name"
-                               name="name" value="{{ family.name|default:'' }}" required>
+                        <label class="form-label" for="{{ family_form.name.id_for_label }}">Name</label>
+                        {{ family_form.name }}
+                        {% if family_form.name.errors %}
+                        <div class="form-text text-danger">{{ family_form.name.errors.0 }}</div>
+                        {% endif %}
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label" for="family-note">Note</label>
-                        <textarea class="form-control" id="family-note" name="note"
-                                  rows="2">{{ family.note|default:'' }}</textarea>
+                        <label class="form-label" for="{{ family_form.note.id_for_label }}">Note</label>
+                        {{ family_form.note }}
                         <div class="form-text">
                             What ties these games together — shown on the family page.
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label" for="family-bgg-id">BGG family id</label>
-                        <input class="form-control" type="number" id="family-bgg-id"
-                               name="bgg_family_id" min="1" placeholder="optional"
-                               value="{{ family.bgg_family_id|default_if_none:'' }}">
+                        <label class="form-label" for="{{ family_form.bgg_family_id.id_for_label }}">BGG family id</label>
+                        {{ family_form.bgg_family_id }}
+                        {% if family_form.bgg_family_id.errors %}
+                        <div class="form-text text-danger">{{ family_form.bgg_family_id.errors.0 }}</div>
+                        {% endif %}
                         <div class="form-text">
                             The number in boardgamegeek.com/boardgamefamily/&lt;id&gt;.
                         </div>
@@ -85,7 +87,7 @@
                                         <input class="form-check-input" type="checkbox"
                                                name="members" value="{{ game.pk }}"
                                                id="member-{{ game.pk }}"
-                                               {% if game.pk in member_pks %}checked{% endif %}>
+                                               {% if game.pk|stringformat:"s" in member_pks %}checked{% endif %}>
                                     </td>
                                     <td><label for="member-{{ game.pk }}">{{ game.name }}</label></td>
                                 </tr>
@@ -95,13 +97,18 @@
                             </tbody>
                         </table>
                         </div>
+                        {% if family_form.members.errors %}
+                        <div class="form-text text-danger">{{ family_form.members.errors.0 }}</div>
+                        {% endif %}
                     </div>
 
                     {% if not family %}
                     <div class="mb-3">
-                        <label class="form-label" for="family-cover">Cover (optional)</label>
-                        <input class="form-control" type="file" id="family-cover"
-                               name="cover" accept="image/*">
+                        <label class="form-label" for="{{ family_form.cover.id_for_label }}">Cover (optional)</label>
+                        {{ family_form.cover }}
+                        {% if family_form.cover.errors %}
+                        <div class="form-text text-danger">{{ family_form.cover.errors.0 }}</div>
+                        {% endif %}
                         <div class="form-text">
                             Shown on the family page (and the future families
                             overview). Focus and zoom tools appear here once the

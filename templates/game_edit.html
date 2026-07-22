@@ -25,9 +25,11 @@
                 <form method="post" action="{% url 'game_edit' game.pk %}">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label class="form-label" for="edit-name">Name</label>
-                        <input class="form-control" type="text" id="edit-name"
-                               name="name" value="{{ game.name }}" required>
+                        <label class="form-label" for="{{ game_form.name.id_for_label }}">Name</label>
+                        {{ game_form.name }}
+                        {% if game_form.name.errors %}
+                        <div class="form-text text-danger">{{ game_form.name.errors.0 }}</div>
+                        {% endif %}
                         {% if game.bgg_name and game.bgg_name != game.name %}
                         <div class="form-text">BGG calls it “{{ game.bgg_name }}”.</div>
                         {% endif %}
@@ -35,10 +37,8 @@
 
                     {# Issue #51: localized/alternate titles, one per line. #}
                     <div class="mb-3">
-                        <label class="form-label" for="edit-alt-names">Alternate names</label>
-                        <textarea class="form-control" id="edit-alt-names" rows="3"
-                                  name="alternate_names">{% for alt in game.alternate_names.all %}{{ alt.name }}
-{% endfor %}</textarea>
+                        <label class="form-label" for="{{ game_form.alternate_names.id_for_label }}">Alternate names</label>
+                        {{ game_form.alternate_names }}
                         <div class="form-text">One per line — localized or common alternate titles. Also searchable in the collection.</div>
                     </div>
 
@@ -46,13 +46,11 @@
                     {# Issue #78: Series/Family membership — existing entries only; #}
                     {# creating a new one stays on its own page. #}
                     <div class="mb-3">
-                        <label class="form-label" for="edit-series">Series</label>
-                        <select class="form-select" id="edit-series" name="series">
-                            <option value="">—</option>
-                            {% for series in series_choices %}
-                            <option value="{{ series.pk }}" {% if game.series_id == series.pk %}selected{% endif %}>{{ series.name }}</option>
-                            {% endfor %}
-                        </select>
+                        <label class="form-label" for="{{ game_form.series.id_for_label }}">Series</label>
+                        {{ game_form.series }}
+                        {% if game_form.series.errors %}
+                        <div class="form-text text-danger">{{ game_form.series.errors.0 }}</div>
+                        {% endif %}
                     </div>
                     <div class="mb-3">
                         <span class="form-label d-block">Families</span>
@@ -60,102 +58,91 @@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="edit-family-{{ family.pk }}"
                                    name="families" value="{{ family.pk }}"
-                                   {% if family.pk in family_pks %}checked{% endif %}>
+                                   {% if family.pk|stringformat:"s" in family_pks %}checked{% endif %}>
                             <label class="form-check-label" for="edit-family-{{ family.pk }}">{{ family.name }}</label>
                         </div>
                         {% empty %}
                         <div class="form-text">No families yet.</div>
                         {% endfor %}
+                        {% if game_form.families.errors %}
+                        <div class="form-text text-danger">{{ game_form.families.errors.0 }}</div>
+                        {% endif %}
                     </div>
                     {% endif %}
 
                     <div class="mb-3">
-                        <label class="form-label" for="edit-language">Language dependency</label>
-                        <select class="form-select" id="edit-language" name="language_dependency">
-                            <option value="">—</option>
-                            {% for value, label in language_dependency_choices %}
-                            <option value="{{ value }}" {% if game.language_dependency == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                        <label class="form-label" for="{{ game_form.language_dependency.id_for_label }}">Language dependency</label>
+                        {{ game_form.language_dependency }}
+                        {% if game_form.language_dependency.errors %}
+                        <div class="form-text text-danger">{{ game_form.language_dependency.errors.0 }}</div>
+                        {% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="edit-language-note">Language note</label>
-                        <input class="form-control" type="text" id="edit-language-note"
-                               name="language_dependency_note"
-                               value="{{ game.language_dependency_note }}">
+                        <label class="form-label" for="{{ game_form.language_dependency_note.id_for_label }}">Language note</label>
+                        {{ game_form.language_dependency_note }}
                     </div>
 
                     <div class="row">
                         <div class="col-sm-6 mb-3">
                             <label class="form-label d-block">Structure</label>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-campaign"
-                                       name="is_campaign" {% if game.is_campaign %}checked{% endif %}>
-                                <label class="form-check-label" for="edit-campaign">Campaign</label>
+                                {{ game_form.is_campaign }}
+                                <label class="form-check-label" for="{{ game_form.is_campaign.id_for_label }}">Campaign</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-legacy"
-                                       name="is_legacy" {% if game.is_legacy %}checked{% endif %}>
-                                <label class="form-check-label" for="edit-legacy">Legacy</label>
+                                {{ game_form.is_legacy }}
+                                <label class="form-check-label" for="{{ game_form.is_legacy.id_for_label }}">Legacy</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-scenarios"
-                                       name="has_scenarios" {% if game.has_scenarios %}checked{% endif %}>
-                                <label class="form-check-label" for="edit-scenarios">Scenarios</label>
+                                {{ game_form.has_scenarios }}
+                                <label class="form-check-label" for="{{ game_form.has_scenarios.id_for_label }}">Scenarios</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-one-off"
-                                       name="is_one_off" {% if game.is_one_off %}checked{% endif %}>
-                                <label class="form-check-label" for="edit-one-off">One-off</label>
+                                {{ game_form.is_one_off }}
+                                <label class="form-check-label" for="{{ game_form.is_one_off.id_for_label }}">One-off</label>
                             </div>
                         </div>
                         <div class="col-sm-6 mb-3">
                             <label class="form-label d-block">Flags</label>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-app-version"
-                                       name="has_app_version" {% if game.has_app_version %}checked{% endif %}>
-                                <label class="form-check-label" for="edit-app-version">Digital version exists</label>
+                                {{ game_form.has_app_version }}
+                                <label class="form-check-label" for="{{ game_form.has_app_version.id_for_label }}">Digital version exists</label>
                             </div>
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-sm-6 mb-3">
-                            <label class="form-label" for="edit-companion">Companion app</label>
-                            <select class="form-select" id="edit-companion" name="companion_app">
-                                <option value="">—</option>
-                                {% for value, label in app_use_choices %}
-                                <option value="{{ value }}" {% if game.companion_app == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label" for="{{ game_form.companion_app.id_for_label }}">Companion app</label>
+                            {{ game_form.companion_app }}
+                            {% if game_form.companion_app.errors %}
+                            <div class="form-text text-danger">{{ game_form.companion_app.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-6 mb-3">
                             <label class="form-label d-block">Soundtrack</label>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-ambience"
-                                       name="soundtrack_ambience" {% if game.soundtrack_ambience %}checked{% endif %}>
-                                <label class="form-check-label" for="edit-ambience">Ambience</label>
+                                {{ game_form.soundtrack_ambience }}
+                                <label class="form-check-label" for="{{ game_form.soundtrack_ambience.id_for_label }}">Ambience</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-timer"
-                                       name="soundtrack_timer" {% if game.soundtrack_timer %}checked{% endif %}>
-                                <label class="form-check-label" for="edit-timer">Timer</label>
+                                {{ game_form.soundtrack_timer }}
+                                <label class="form-check-label" for="{{ game_form.soundtrack_timer.id_for_label }}">Timer</label>
                             </div>
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label" for="edit-conflict">Player conflict (0–3)</label>
-                            <input class="form-control" type="number" id="edit-conflict"
-                                   name="player_conflict" min="0" max="3"
-                                   value="{{ game.player_conflict|default_if_none:'' }}">
+                            <label class="form-label" for="{{ game_form.player_conflict.id_for_label }}">Player conflict (0–3)</label>
+                            {{ game_form.player_conflict }}
+                            {% if game_form.player_conflict.errors %}
+                            <div class="form-text text-danger">{{ game_form.player_conflict.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-9 mb-3">
-                            <label class="form-label" for="edit-conflict-note">Conflict note</label>
-                            <input class="form-control" type="text" id="edit-conflict-note"
-                                   name="player_conflict_note"
-                                   value="{{ game.player_conflict_note }}">
+                            <label class="form-label" for="{{ game_form.player_conflict_note.id_for_label }}">Conflict note</label>
+                            {{ game_form.player_conflict_note }}
                         </div>
                     </div>
 
@@ -163,22 +150,25 @@
                     <div class="row">
                         {# DESIGN §4 per-expansion overrides; blank = use BGG stats. #}
                         <div class="col-sm-4 mb-3">
-                            <label class="form-label" for="edit-min-override">Min players override</label>
-                            <input class="form-control" type="number" id="edit-min-override"
-                                   name="players_min_override" min="1"
-                                   value="{{ game.players_min_override|default_if_none:'' }}">
+                            <label class="form-label" for="{{ game_form.players_min_override.id_for_label }}">Min players override</label>
+                            {{ game_form.players_min_override }}
+                            {% if game_form.players_min_override.errors %}
+                            <div class="form-text text-danger">{{ game_form.players_min_override.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-4 mb-3">
-                            <label class="form-label" for="edit-max-override">Max players override</label>
-                            <input class="form-control" type="number" id="edit-max-override"
-                                   name="players_max_override" min="1"
-                                   value="{{ game.players_max_override|default_if_none:'' }}">
+                            <label class="form-label" for="{{ game_form.players_max_override.id_for_label }}">Max players override</label>
+                            {{ game_form.players_max_override }}
+                            {% if game_form.players_max_override.errors %}
+                            <div class="form-text text-danger">{{ game_form.players_max_override.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-4 mb-3">
-                            <label class="form-label" for="edit-playtime-delta">Playtime delta (min)</label>
-                            <input class="form-control" type="number" id="edit-playtime-delta"
-                                   name="playtime_delta_override"
-                                   value="{{ game.playtime_delta_override|default_if_none:'' }}">
+                            <label class="form-label" for="{{ game_form.playtime_delta_override.id_for_label }}">Playtime delta (min)</label>
+                            {{ game_form.playtime_delta_override }}
+                            {% if game_form.playtime_delta_override.errors %}
+                            <div class="form-text text-danger">{{ game_form.playtime_delta_override.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endif %}
