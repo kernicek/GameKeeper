@@ -23,75 +23,86 @@
                     {% csrf_token %}
                     <div class="row">
                         <div class="col-sm-8 mb-3">
-                            <label class="form-label" for="edition-name">Name</label>
-                            <input class="form-control" type="text" id="edition-name"
-                                   name="name" value="{{ edition.name|default:'' }}"
-                                   placeholder="e.g. Kickstarter Edition">
+                            <label class="form-label" for="{{ edition_form.name.id_for_label }}">Name</label>
+                            {{ edition_form.name }}
+                            {% if edition_form.name.errors %}
+                            <div class="form-text text-danger">{{ edition_form.name.errors.0 }}</div>
+                            {% endif %}
                             <div class="form-text">Blank for the default edition.</div>
                         </div>
                         <div class="col-sm-4 mb-3">
-                            <label class="form-label" for="edition-bgg-version">BGG version id</label>
-                            <input class="form-control" type="number" min="0" id="edition-bgg-version"
-                                   name="bgg_version_id"
-                                   value="{{ edition.bgg_version_id|default_if_none:'' }}">
+                            <label class="form-label" for="{{ edition_form.bgg_version_id.id_for_label }}">BGG version id</label>
+                            {{ edition_form.bgg_version_id }}
+                            {% if edition_form.bgg_version_id.errors %}
+                            <div class="form-text text-danger">{{ edition_form.bgg_version_id.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
 
                     <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="edition-default"
-                               name="is_default" {% if edition.is_default %}checked{% endif %}>
-                        <label class="form-check-label" for="edition-default">Default edition</label>
+                        {{ edition_form.is_default }}
+                        <label class="form-check-label" for="{{ edition_form.is_default.id_for_label }}">Default edition</label>
+                        {% if edition_form.is_default.errors %}
+                        <div class="form-text text-danger">{{ edition_form.is_default.errors.0 }}</div>
+                        {% endif %}
                     </div>
 
                     <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="edition-pnp"
-                               name="is_pnp" {% if edition.is_pnp %}checked{% endif %}>
-                        <label class="form-check-label" for="edition-pnp">Print &amp; play</label>
+                        {{ edition_form.is_pnp }}
+                        <label class="form-check-label" for="{{ edition_form.is_pnp.id_for_label }}">Print &amp; play</label>
                     </div>
 
                     <div class="row">
                         <div class="col-sm-6 mb-3">
-                            <label class="form-label" for="edition-language">Components language</label>
-                            <select class="form-select" id="edition-language" name="components_language">
-                                <option value="">—</option>
-                                {% for value, label in components_languages %}
-                                <option value="{{ value }}" {% if edition.components_language == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label" for="{{ edition_form.components_language.id_for_label }}">Components language</label>
+                            {{ edition_form.components_language }}
+                            {% if edition_form.components_language.errors %}
+                            <div class="form-text text-danger">{{ edition_form.components_language.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-6 mb-3">
-                            <label class="form-label" for="edition-size">Size category</label>
-                            <select class="form-select" id="edition-size" name="size_category">
-                                <option value="">—</option>
-                                {% for value, label in size_categories %}
-                                <option value="{{ value }}" {% if edition.size_category == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label" for="{{ edition_form.size_category.id_for_label }}">Size category</label>
+                            {{ edition_form.size_category }}
+                            {% if edition_form.size_category.errors %}
+                            <div class="form-text text-danger">{{ edition_form.size_category.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label" for="edition-boxes">Boxes</label>
-                            <input class="form-control" type="number" min="0" id="edition-boxes"
-                                   name="num_boxes" value="{{ edition.num_boxes|default_if_none:'' }}">
+                            <label class="form-label" for="{{ edition_form.num_boxes.id_for_label }}">Boxes</label>
+                            {{ edition_form.num_boxes }}
+                            {% if edition_form.num_boxes.errors %}
+                            <div class="form-text text-danger">{{ edition_form.num_boxes.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label" for="edition-length">Box length (mm)</label>
-                            <input class="form-control" type="number" min="0" id="edition-length"
-                                   name="box_length_mm" value="{{ edition.box_length_mm|default_if_none:'' }}">
+                            <label class="form-label" for="{{ edition_form.box_length_mm.id_for_label }}">Box length (mm)</label>
+                            {{ edition_form.box_length_mm }}
+                            {% if edition_form.box_length_mm.errors %}
+                            <div class="form-text text-danger">{{ edition_form.box_length_mm.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label" for="edition-width">Box width (mm)</label>
-                            <input class="form-control" type="number" min="0" id="edition-width"
-                                   name="box_width_mm" value="{{ edition.box_width_mm|default_if_none:'' }}">
+                            <label class="form-label" for="{{ edition_form.box_width_mm.id_for_label }}">Box width (mm)</label>
+                            {{ edition_form.box_width_mm }}
+                            {% if edition_form.box_width_mm.errors %}
+                            <div class="form-text text-danger">{{ edition_form.box_width_mm.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label" for="edition-height">Box height (mm)</label>
-                            <input class="form-control" type="number" min="0" id="edition-height"
-                                   name="box_height_mm" value="{{ edition.box_height_mm|default_if_none:'' }}">
+                            <label class="form-label" for="{{ edition_form.box_height_mm.id_for_label }}">Box height (mm)</label>
+                            {{ edition_form.box_height_mm }}
+                            {% if edition_form.box_height_mm.errors %}
+                            <div class="form-text text-danger">{{ edition_form.box_height_mm.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
+
+                    {% if edition_form.non_field_errors %}
+                    <div class="alert alert-danger">{{ edition_form.non_field_errors.0 }}</div>
+                    {% endif %}
 
                     <button class="btn btn-primary" type="submit">Save &amp; back to game</button>
                 </form>

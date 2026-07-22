@@ -25,41 +25,35 @@
                     {% csrf_token %}
                     <div class="row">
                         <div class="col-sm-8 mb-3">
-                            <label class="form-label" for="pr-name">Name</label>
-                            <input class="form-control" type="text" id="pr-name"
-                                   name="name" value="{{ product.name }}"
-                                   maxlength="300" required>
+                            <label class="form-label" for="{{ product_form.name.id_for_label }}">Name</label>
+                            {{ product_form.name }}
+                            {% if product_form.name.errors %}
+                            <div class="form-text text-danger">{{ product_form.name.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-4 mb-3">
-                            <label class="form-label" for="pr-kind">Kind</label>
-                            <select class="form-select" id="pr-kind" name="kind">
-                                {% for value, label in kind_choices %}
-                                <option value="{{ value }}" {% if product.kind == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label" for="{{ product_form.kind.id_for_label }}">Kind</label>
+                            {{ product_form.kind }}
+                            {% if product_form.kind.errors %}
+                            <div class="form-text text-danger">{{ product_form.kind.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-sm-6 mb-3">
-                            <label class="form-label" for="pr-game">Game</label>
-                            <select class="form-select" id="pr-game" name="game">
-                                <option value="">— not a modelled game —</option>
-                                {% for game in games %}
-                                <option value="{{ game.pk }}" {% if product.game_id == game.pk %}selected{% endif %}>{{ game.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label" for="{{ product_form.game.id_for_label }}">Game</label>
+                            {{ product_form.game }}
+                            {% if product_form.game.errors %}
+                            <div class="form-text text-danger">{{ product_form.game.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-6 mb-3">
-                            <label class="form-label" for="pr-edition">Edition</label>
-                            <select class="form-select" id="pr-edition" name="edition">
-                                <option value="">—</option>
-                                {% for edition in editions %}
-                                <option value="{{ edition.pk }}" {% if product.edition_id == edition.pk %}selected{% endif %}>
-                                    {{ edition.name|default:"default edition" }}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label" for="{{ product_form.edition.id_for_label }}">Edition</label>
+                            {{ product_form.edition }}
+                            {% if product_form.edition.errors %}
+                            <div class="form-text text-danger">{{ product_form.edition.errors.0 }}</div>
+                            {% endif %}
                             <div class="form-text">
                                 Options follow the saved game — after changing
                                 the game, save first, then pick.
@@ -69,64 +63,66 @@
 
                     <div class="row">
                         <div class="col-sm-6 mb-3">
-                            <label class="form-label" for="pr-bgg-url">BGG URL</label>
-                            <input class="form-control" type="url" id="pr-bgg-url"
-                                   name="bgg_url" value="{{ product.bgg_url }}"
-                                   maxlength="500" placeholder="https://…">
+                            <label class="form-label" for="{{ product_form.bgg_url.id_for_label }}">BGG URL</label>
+                            {{ product_form.bgg_url }}
+                            {% if product_form.bgg_url.errors %}
+                            <div class="form-text text-danger">{{ product_form.bgg_url.errors.0 }}</div>
+                            {% endif %}
                             <div class="form-text">For items on BGG that aren't modelled as games (promos, accessories).</div>
                         </div>
                         <div class="col-sm-6 mb-3">
-                            <label class="form-label" for="pr-drive-url">Files URL</label>
-                            <input class="form-control" type="url" id="pr-drive-url"
-                                   name="drive_url" value="{{ product.drive_url }}"
-                                   maxlength="1000" placeholder="https://…">
+                            <label class="form-label" for="{{ product_form.drive_url.id_for_label }}">Files URL</label>
+                            {{ product_form.drive_url }}
+                            {% if product_form.drive_url.errors %}
+                            <div class="form-text text-danger">{{ product_form.drive_url.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
 
                     <label class="form-label d-block">Contents (provisional, pre-arrival)</label>
                     <div class="row">
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label small text-secondary" for="pr-cards">Contains cards</label>
-                            <select class="form-select form-select-sm" id="pr-cards" name="contains_cards">
-                                <option value="">—</option>
-                                {% for value, label in tristate_choices %}
-                                <option value="{{ value }}" {% if product.contains_cards == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label small text-secondary" for="{{ product_form.contains_cards.id_for_label }}">Contains cards</label>
+                            {{ product_form.contains_cards }}
+                            {% if product_form.contains_cards.errors %}
+                            <div class="form-text text-danger">{{ product_form.contains_cards.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label small text-secondary" for="pr-sleeves">Needs sleeves</label>
-                            <select class="form-select form-select-sm" id="pr-sleeves" name="needs_sleeves">
-                                <option value="">—</option>
-                                {% for value, label in tristate_choices %}
-                                <option value="{{ value }}" {% if product.needs_sleeves == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label small text-secondary" for="{{ product_form.needs_sleeves.id_for_label }}">Needs sleeves</label>
+                            {{ product_form.needs_sleeves }}
+                            {% if product_form.needs_sleeves.errors %}
+                            <div class="form-text text-danger">{{ product_form.needs_sleeves.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label small text-secondary" for="pr-minis">Miniatures</label>
-                            <input class="form-control form-control-sm" type="number"
-                                   id="pr-minis" name="miniatures_count" min="0"
-                                   value="{{ product.miniatures_count|default_if_none:'' }}">
+                            <label class="form-label small text-secondary" for="{{ product_form.miniatures_count.id_for_label }}">Miniatures</label>
+                            {{ product_form.miniatures_count }}
+                            {% if product_form.miniatures_count.errors %}
+                            <div class="form-text text-danger">{{ product_form.miniatures_count.errors.0 }}</div>
+                            {% endif %}
                         </div>
                         <div class="col-sm-3 mb-3">
-                            <label class="form-label small text-secondary" for="pr-fits">Fits sleeved?</label>
-                            <input class="form-control form-control-sm" type="text"
-                                   id="pr-fits" name="fits_sleeved_note"
-                                   value="{{ product.fits_sleeved_note }}" maxlength="100">
+                            <label class="form-label small text-secondary" for="{{ product_form.fits_sleeved_note.id_for_label }}">Fits sleeved?</label>
+                            {{ product_form.fits_sleeved_note }}
+                            {% if product_form.fits_sleeved_note.errors %}
+                            <div class="form-text text-danger">{{ product_form.fits_sleeved_note.errors.0 }}</div>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="pr-insert">3D-insert plan</label>
-                        <input class="form-control" type="text" id="pr-insert"
-                               name="insert_3d_note" value="{{ product.insert_3d_note }}"
-                               maxlength="300"
-                               placeholder="moves to the copy on arrival">
+                        <label class="form-label" for="{{ product_form.insert_3d_note.id_for_label }}">3D-insert plan</label>
+                        {{ product_form.insert_3d_note }}
+                        {% if product_form.insert_3d_note.errors %}
+                        <div class="form-text text-danger">{{ product_form.insert_3d_note.errors.0 }}</div>
+                        {% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="pr-notes">Notes</label>
-                        <textarea class="form-control" id="pr-notes" name="notes"
-                                  rows="3">{{ product.notes }}</textarea>
+                        <label class="form-label" for="{{ product_form.notes.id_for_label }}">Notes</label>
+                        {{ product_form.notes }}
+                        {% if product_form.notes.errors %}
+                        <div class="form-text text-danger">{{ product_form.notes.errors.0 }}</div>
+                        {% endif %}
                     </div>
 
                     <p class="text-secondary small mb-3">

@@ -37,9 +37,11 @@
                       action="{% if series %}{% url 'series_edit' series.pk %}{% else %}{% url 'series_add' %}{% endif %}">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label class="form-label" for="series-name">Name</label>
-                        <input class="form-control" type="text" id="series-name"
-                               name="name" value="{{ series.name|default:'' }}" required>
+                        <label class="form-label" for="{{ series_form.name.id_for_label }}">Name</label>
+                        {{ series_form.name }}
+                        {% if series_form.name.errors %}
+                        <div class="form-text text-danger">{{ series_form.name.errors.0 }}</div>
+                        {% endif %}
                         <div class="form-text">
                             The collection grid shows this name on the collapsed tile.
                         </div>
@@ -73,12 +75,12 @@
                                         <input class="form-check-input" type="checkbox"
                                                name="members" value="{{ game.pk }}"
                                                id="member-{{ game.pk }}"
-                                               {% if game.pk in member_pks %}checked{% endif %}>
+                                               {% if game.pk|stringformat:"s" in member_pks %}checked{% endif %}>
                                     </td>
                                     <td class="text-center">
                                         <input class="form-check-input" type="radio"
                                                name="primary_game" value="{{ game.pk }}"
-                                               {% if game.pk == primary_pk %}checked{% endif %}>
+                                               {% if game.pk|stringformat:"s" == primary_pk %}checked{% endif %}>
                                     </td>
                                     <td><label for="member-{{ game.pk }}">{{ game.name }}</label></td>
                                 </tr>
@@ -88,13 +90,24 @@
                             </tbody>
                         </table>
                         </div>
+                        {% if series_form.members.errors %}
+                        <div class="form-text text-danger">{{ series_form.members.errors.0 }}</div>
+                        {% endif %}
+                        {% if series_form.primary_game.errors %}
+                        <div class="form-text text-danger">{{ series_form.primary_game.errors.0 }}</div>
+                        {% endif %}
+                        {% if series_form.non_field_errors %}
+                        <div class="form-text text-danger">{{ series_form.non_field_errors.0 }}</div>
+                        {% endif %}
                     </div>
 
                     {% if not series %}
                     <div class="mb-3">
-                        <label class="form-label" for="series-cover">Custom tile cover (optional)</label>
-                        <input class="form-control" type="file" id="series-cover"
-                               name="cover" accept="image/*">
+                        <label class="form-label" for="{{ series_form.cover.id_for_label }}">Custom tile cover (optional)</label>
+                        {{ series_form.cover }}
+                        {% if series_form.cover.errors %}
+                        <div class="form-text text-danger">{{ series_form.cover.errors.0 }}</div>
+                        {% endif %}
                         <div class="form-text">
                             When unset, the tile uses the primary member's cover with
                             its crop and zoom. Focus and zoom tools appear here once

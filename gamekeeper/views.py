@@ -8,7 +8,6 @@ projection, gated by the group's unguessable share_token instead. The
 and 3 (server-public), sharing the same curated projection."""
 
 import datetime
-import io
 import logging
 import re
 import unicodedata
@@ -16,7 +15,6 @@ from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
 import requests
-from PIL import Image
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -35,8 +33,9 @@ from django.views.decorators.http import require_POST
 from . import bgg_sync, ntfy
 from .bgg import extract_bgg_id
 from .forms import (
-    CopyForm, PledgePlanBundleForm, PledgePlanForm, PledgePlanItemForm,
-    PurchaseForm, WaveFormSet,
+    COVER_EXTENSIONS, CopyForm, EditionForm, FamilyForm, GameForm,
+    PledgePlanBundleForm, PledgePlanForm, PledgePlanItemForm, ProductForm,
+    PurchaseForm, SeriesForm, WaveFormSet, _validate_cover_image,
 )
 from .models import (
     BggLink, BggSyncDiff, CardSize, Copy, CopySleeveStatus, Document, Edition,
@@ -1706,15 +1705,6 @@ def _parse_form_date(post, field):
     return value
 
 
-def _parse_form_url(post, field):
-    # Stored URLs render as plain hrefs, so anything non-http(s) is refused
-    # outright (type=url inputs don't constrain the scheme).
-    value = post.get(field, "").strip()
-    if value and not value.startswith(("http://", "https://")):
-        raise ValueError(f"{field} must be an http(s) URL.")
-    return value
-
-
 def _purchase_edit_context(purchase, purchase_form, wave_formset, **extra):
     return {
         "purchase": purchase,
@@ -1830,10 +1820,6 @@ def _product_edit_context(product, **extra):
     return {
         "product": product,
         "purchase": product.wave.purchase,
-        "games": Game.objects.order_by("name"),
-        "editions": product.game.editions.all() if product.game else [],
-        "kind_choices": Product.Kind.choices,
-        "tristate_choices": Product.TriState.choices,
         **extra,
     }
 
@@ -1858,77 +1844,28 @@ def product_detail(request, pk):
 def product_edit(request, pk):
     """The product edit page (issue #5): what a wave line-item is — kind,
     the Game/Edition it delivers, reference links and the provisional §6
-    contents fields. The edition select always trails the *saved* game
+    contents fields. The edition select always trails the *posted* game
     (its options come from it), so an edition that doesn't belong to the
     posted game is cleared rather than rejected — changing the game means
-    save, then pick. Sleeve counts (ProductSleeveRequirement) stay
-    admin-managed."""
+    save, then pick (ProductForm.clean, issue #28). Sleeve counts
+    (ProductSleeveRequirement) stay admin-managed."""
     product = get_object_or_404(
         Product.objects.select_related("wave__purchase", "game"),
         pk=pk, wave__purchase__owner=request.user,
     )
     if request.method != "POST":
-        return render(request, "product_edit.html",
-                      _product_edit_context(product))
+        return render(request, "product_edit.html", _product_edit_context(
+            product, product_form=ProductForm(instance=product)))
 
-    name = request.POST.get("name", "").strip()
-    if not name:
-        return HttpResponseBadRequest("Name is required.")
-    if product.wave.products.filter(name=name).exclude(pk=product.pk).exists():
-        return HttpResponseBadRequest(
-            "This wave already has an item with that name.")
-    product.name = name
-
-    kind = request.POST.get("kind", "")
-    if kind not in Product.Kind.values:
-        return HttpResponseBadRequest("Unknown kind.")
-    product.kind = kind
-
+    # Captured before the form binds — is_valid() mutates `product` in
+    # place via construct_instance(), so this must not be read after that.
     old_game = product.game
 
-    game_pk = request.POST.get("game", "")
-    if game_pk:
-        game = Game.objects.filter(pk=game_pk).first() if game_pk.isdigit() else None
-        if game is None:
-            return HttpResponseBadRequest("Unknown game.")
-        product.game = game
-    else:
-        product.game = None
-    edition_pk = request.POST.get("edition", "")
-    product.edition = (
-        product.game.editions.filter(pk=edition_pk).first()
-        if product.game and edition_pk.isdigit() else None
-    )
-
-    for field in ("contains_cards", "needs_sleeves"):
-        value = request.POST.get(field, "")
-        if value and value not in Product.TriState.values:
-            return HttpResponseBadRequest(f"Unknown {field} value.")
-        setattr(product, field, value)
-
-    raw = request.POST.get("miniatures_count", "").strip()
-    if raw:
-        try:
-            count = int(raw)
-        except ValueError:
-            return HttpResponseBadRequest(
-                "Miniatures count must be a whole number.")
-        if count < 0:
-            return HttpResponseBadRequest("Miniatures count can't be negative.")
-        product.miniatures_count = count
-    else:
-        product.miniatures_count = None
-
-    try:
-        product.bgg_url = _parse_form_url(request.POST, "bgg_url")
-        product.drive_url = _parse_form_url(request.POST, "drive_url")
-    except ValueError as error:
-        return HttpResponseBadRequest(str(error))
-    product.fits_sleeved_note = request.POST.get("fits_sleeved_note", "").strip()
-    product.insert_3d_note = request.POST.get("insert_3d_note", "").strip()
-    product.notes = request.POST.get("notes", "").strip()
-
-    product.save()
+    form = ProductForm(request.POST, instance=product)
+    if not form.is_valid():
+        return render(request, "product_edit.html",
+                      _product_edit_context(product, product_form=form))
+    product = form.save()
     # Issue #166: recompute for both the old and new game link, since
     # switching a product's game can drop one game's last incoming source
     # while adding a new one.
@@ -3311,139 +3248,52 @@ def settings_email_test(request):
 # for expands, the §8 sync per issue #40), never this form.
 # ---------------------------------------------------------------------------
 
-COVER_MAX_BYTES = 20 * 1024 * 1024
 COVER_FETCH_TIMEOUT = 30
-# Web-safe formats only — a browser has to render the file straight from
-# media/covers/. Pillow names the format; anything else is rejected.
-COVER_EXTENSIONS = {"JPEG": ".jpg", "PNG": ".png", "GIF": ".gif", "WEBP": ".webp"}
 
 
-def _game_edit_context(game, user, **extra):
+def _game_edit_context(game, user, game_form, **extra):
+    # Families are hand-rendered checkboxes (client-side filter, custom
+    # ids) rather than {{ form.families }} — sticky across a failed POST
+    # the same way as series/family's own member tables.
+    has_families_field = "families" in game_form.fields
+    if game_form.is_bound and has_families_field:
+        family_pks = set(game_form.data.getlist("families"))
+    elif has_families_field:
+        family_pks = {str(pk) for pk in game.families.values_list("pk", flat=True)}
+    else:
+        family_pks = set()
     return {
         "game": game,
-        "language_dependency_choices": Game.LanguageDependency.choices,
-        "app_use_choices": Game.AppUse.choices,
+        "game_form": game_form,
         # Issue #78: Series/Family are the game's own side of a relation
         # curated elsewhere (series_edit/family_edit) — only existing rows
         # are offered here, never a way to create new ones.
-        "series_choices": Series.objects.all(),
         "family_choices": Family.objects.all(),
-        "family_pks": set(game.families.values_list("pk", flat=True)),
+        "family_pks": family_pks,
         **extra,
     }
 
 
 @login_required
 def game_edit(request, pk):
-    """The game edit page. GET renders the cover tools + details form; POST
-    saves the details and returns to the detail page. Selects and checkboxes
-    constrain what a browser can send, so out-of-vocabulary values are 400s
-    (curation-style), not inline errors."""
+    """The game edit page (issue #28: GameForm). GET renders the cover tools
+    + details form; POST saves the details and returns to the detail page."""
     game = get_object_or_404(Game, pk=pk)
     if request.method != "POST":
+        return render(request, "game_edit.html", _game_edit_context(
+            game, request.user, GameForm(instance=game)))
+
+    form = GameForm(request.POST, instance=game)
+    if not form.is_valid():
         return render(request, "game_edit.html",
-                      _game_edit_context(game, request.user))
+                      _game_edit_context(game, request.user, form))
+    game = form.save()
 
-    name = request.POST.get("name", "").strip()
-    if not name:
-        return HttpResponseBadRequest("Name is required.")
-    game.name = name
-
-    for field in ("language_dependency", "companion_app"):
-        value = request.POST.get(field, "")
-        choices = game._meta.get_field(field).choices
-        if value and value not in dict(choices):
-            return HttpResponseBadRequest(f"Unknown {field} value.")
-        setattr(game, field, value)
-
-    for field in ("is_campaign", "is_legacy", "has_scenarios",
-                  "is_one_off", "has_app_version", "soundtrack_ambience",
-                  "soundtrack_timer"):
-        # The whole form posts at once (no hx-include ride-alongs here), so
-        # plain checkbox semantics are safe: absent = unchecked.
-        setattr(game, field, field in request.POST)
-
-    def parse_int(field, low=None, high=None):
-        raw = request.POST.get(field, "").strip()
-        if not raw:
-            return None
-        try:
-            value = int(raw)
-        except ValueError:
-            raise ValueError(f"{field} must be a whole number.")
-        if (low is not None and value < low) or (high is not None and value > high):
-            raise ValueError(f"{field} is out of range.")
-        return value
-
-    try:
-        game.player_conflict = parse_int("player_conflict", 0, 3)
-        if game.type == Game.Type.EXPANSION:
-            game.players_min_override = parse_int("players_min_override", 1)
-            game.players_max_override = parse_int("players_max_override", 1)
-            game.playtime_delta_override = parse_int("playtime_delta_override")
-    except ValueError as error:
-        return HttpResponseBadRequest(str(error))
-
-    game.language_dependency_note = request.POST.get(
-        "language_dependency_note", "").strip()
-    game.player_conflict_note = request.POST.get(
-        "player_conflict_note", "").strip()
-
-    # Issue #78: Series (FK) and Family (M2M) membership. Both are only
-    # offered for base games (mirrors _series_edit_context/
-    # _family_edit_context, which restrict candidates the same way) — an
-    # expansion never has these fields in the form, so leave them untouched.
-    families_to_set = None
-    if game.type == Game.Type.BASE:
-        raw_series = request.POST.get("series", "").strip()
-        series_pk = None
-        if raw_series:
-            try:
-                series_pk = int(raw_series)
-            except ValueError:
-                return HttpResponseBadRequest("Unknown series value.")
-            if not Series.objects.filter(pk=series_pk).exists():
-                return HttpResponseBadRequest("Unknown series value.")
-
-        # A series' primary_game must stay one of its members (enforced from
-        # the other side by _save_series) — block orphaning it from here.
-        if game.series_id and game.series_id != series_pk and \
-                Series.objects.filter(
-                    pk=game.series_id, primary_game_id=game.pk).exists():
-            return HttpResponseBadRequest(
-                "This game is its series' primary game — change the "
-                "series' primary game first.")
-        game.series_id = series_pk
-
-        try:
-            family_pks = {int(raw) for raw in request.POST.getlist("families")}
-        except ValueError:
-            return HttpResponseBadRequest("Family ids must be whole numbers.")
-        valid_family_pks = set(
-            Family.objects.filter(pk__in=family_pks)
-            .values_list("pk", flat=True)
-        )
-        if family_pks - valid_family_pks:
-            return HttpResponseBadRequest("Unknown family.")
-        families_to_set = family_pks
-
-    game.save()
-
-    if families_to_set is not None:
-        game.families.set(families_to_set)
-
-    # Issue #51: alternate names, one per line in a free-text box. Strip
-    # blanks and case-insensitive duplicates (first spelling wins), then
-    # replace the child rows wholesale — nothing references them, so the PK
-    # churn is harmless and this dodges casing-only edit edge cases.
-    wanted, seen = [], set()
-    for line in request.POST.get("alternate_names", "").splitlines():
-        alt = line.strip()
-        if alt and alt.lower() not in seen:
-            seen.add(alt.lower())
-            wanted.append(alt)
+    # Issue #51: alternate names, one per line in a free-text box (deduped
+    # and stripped by GameForm.clean_alternate_names) — replace the child
+    # rows wholesale. Nothing references them, so the PK churn is harmless.
     game.alternate_names.all().delete()
-    for alt in wanted:
+    for alt in form.cleaned_data["alternate_names"]:
         game.alternate_names.create(name=alt)
 
     return redirect("game_detail", pk=game.pk)
@@ -3479,23 +3329,6 @@ def _render_cover_editor(request, obj, error=""):
     return render(request, "partials/cover_editor.html", {
         "game": obj, "cover_error": error, **_cover_editor_urls(obj),
     })
-
-
-def _validate_cover_image(data):
-    """Validate cover image bytes for browser-renderable formats. Returns
-    (error, image) — error is "" on success; the (verified) Pillow image
-    still answers .format and .size."""
-    if len(data) > COVER_MAX_BYTES:
-        return "Image is too large (20 MB max).", None
-    try:
-        image = Image.open(io.BytesIO(data))
-        image.verify()
-    except Exception:
-        return "That does not look like an image file.", None
-    if image.format not in COVER_EXTENSIONS:
-        return (f"{image.format} images will not render in browsers — "
-                "use JPEG, PNG, GIF or WebP."), None
-    return "", image
 
 
 def _replace_cover(obj, data, stem):
@@ -3824,77 +3657,50 @@ def series_set_location(request, pk):
     return redirect(f"{url}?moved={moved}")
 
 
-def _series_edit_context(series, **extra):
-    """Candidates are base games that are unclaimed or already ours — a game
-    in ANOTHER series never shows, so the editor can't silently steal it.
-    Expansions collapse under their base game, never on their own."""
-    unclaimed = Q(series__isnull=True)
-    if series:
-        unclaimed |= Q(series=series)
-    candidates = Game.objects.filter(type=Game.Type.BASE).filter(unclaimed)
+def _series_edit_context(series, series_form, **extra):
+    posted = series_form.data.getlist("members") if series_form.is_bound else None
+    primary_raw = (
+        series_form.data.get("primary_game") if series_form.is_bound
+        else series_form.initial.get("primary_game")
+    )
     return {
         "series": series,
-        "candidates": candidates,
-        "member_pks": set(
-            series.members.values_list("pk", flat=True)) if series else set(),
-        "primary_pk": series.primary_game_id if series else None,
+        "series_form": series_form,
+        # The form's own narrowed queryset (unclaimed-or-ours base games) —
+        # no need to recompute it here.
+        "candidates": series_form.fields["members"].queryset,
+        "member_pks": (
+            set(posted) if posted is not None
+            else {str(pk) for pk in series_form.initial.get("members", [])}
+        ),
+        "primary_pk": str(primary_raw) if primary_raw is not None else None,
         **extra,
     }
 
 
 def _save_series(request, series):
-    """Shared create/update POST handler (game_edit style: selects and
-    checkboxes constrain the browser, so out-of-vocabulary input is a 400).
-    The members checkboxes edit the reverse side of Game.series."""
-    name = request.POST.get("name", "").strip()
-    if not name:
-        return HttpResponseBadRequest("Name is required.")
-
-    try:
-        member_pks = {int(raw) for raw in request.POST.getlist("members")}
-        primary_pk = int(request.POST.get("primary_game", ""))
-    except ValueError:
-        return HttpResponseBadRequest("Game ids must be whole numbers.")
-    if primary_pk not in member_pks:
-        return HttpResponseBadRequest("Primary game must be one of the members.")
-    unclaimed = Q(series__isnull=True)
-    if series:
-        unclaimed |= Q(series=series)
-    valid_pks = set(
-        Game.objects.filter(type=Game.Type.BASE, pk__in=member_pks)
-        .filter(unclaimed).values_list("pk", flat=True)
-    )
-    if member_pks - valid_pks:
-        return HttpResponseBadRequest(
-            "Members must be base games not claimed by another series.")
-
-    # Validate the cover BEFORE writing anything, so a bad upload on create
-    # never leaves an orphaned Series behind.
-    cover_data = None
-    upload = request.FILES.get("cover")
-    if upload:
-        cover_data = upload.read()
-        error, _ = _validate_cover_image(cover_data)
-        if error:
-            return HttpResponseBadRequest(error)
-
-    if series is None:
-        series = Series(name=name, primary_game_id=primary_pk)
-    else:
-        series.name = name
-        series.primary_game_id = primary_pk
-    series.save()
+    """Shared create/update POST handler (issue #28: SeriesForm). The
+    members/primary_game checkboxes edit the reverse side of Game.series,
+    reconciled here after save (see SeriesForm's docstring for why
+    primary_game isn't a Meta field)."""
+    form = SeriesForm(request.POST, request.FILES, instance=series or Series())
+    if not form.is_valid():
+        return render(request, "series_edit.html",
+                       _series_edit_context(series, form))
+    form.instance.primary_game = form.cleaned_data["primary_game"]
+    series = form.save()
 
     # Reconcile membership: unchecked members are released (SET_NULL
     # semantics by hand), checked ones claimed.
+    member_pks = {game.pk for game in form.cleaned_data["members"]}
     series.members.exclude(pk__in=member_pks).update(series=None)
     Game.objects.filter(pk__in=member_pks).update(series=series)
 
     # Only the add page still posts a cover here (issue #54) — once the
     # series exists, the htmx cover editor owns upload/URL/clear via
-    # series_cover_edit. Pre-validated above, so no error can surface.
-    if cover_data is not None:
-        _replace_cover(series, cover_data, f"series-{series.pk}")
+    # series_cover_edit. Pre-validated in the form, so no error can surface.
+    if getattr(form, "cover_data", None):
+        _replace_cover(series, form.cover_data, f"series-{series.pk}")
 
     return redirect("series_detail", pk=series.pk)
 
@@ -3902,7 +3708,8 @@ def _save_series(request, series):
 @login_required
 def series_add(request):
     if request.method != "POST":
-        return render(request, "series_edit.html", _series_edit_context(None))
+        return render(request, "series_edit.html",
+                       _series_edit_context(None, SeriesForm()))
     return _save_series(request, None)
 
 
@@ -3910,7 +3717,8 @@ def series_add(request):
 def series_edit(request, pk):
     series = get_object_or_404(Series, pk=pk)
     if request.method != "POST":
-        return render(request, "series_edit.html", _series_edit_context(series))
+        return render(request, "series_edit.html",
+                       _series_edit_context(series, SeriesForm(instance=series)))
     return _save_series(request, series)
 
 
@@ -3945,66 +3753,39 @@ def family_detail(request, pk):
     })
 
 
-def _family_edit_context(family, **extra):
+def _family_edit_context(family, family_form, **extra):
     """Candidates are ALL base games — membership is a loose M2M (a game may
     sit in several families), so joining one never steals from another and
     no unclaimed restriction applies. Expansions stay out: a family relates
     standalone games, expansions already hang off their base."""
+    posted = family_form.data.getlist("members") if family_form.is_bound else None
     return {
         "family": family,
+        "family_form": family_form,
         "candidates": Game.objects.filter(type=Game.Type.BASE),
-        "member_pks": set(
-            family.members.values_list("pk", flat=True)) if family else set(),
+        "member_pks": (
+            set(posted) if posted is not None
+            else {str(pk) for pk in family_form.initial.get("members", [])}
+        ),
         **extra,
     }
 
 
 def _save_family(request, family):
-    """Shared create/update POST handler (the _save_series shape): name
-    required, note and bgg_family_id optional, members must be base games.
-    Membership is the M2M's forward side — one set() reconciles both
-    directions."""
-    name = request.POST.get("name", "").strip()
-    if not name:
-        return HttpResponseBadRequest("Name is required.")
-
-    raw_bgg_id = (request.POST.get("bgg_family_id") or "").strip()
-    try:
-        bgg_family_id = int(raw_bgg_id) if raw_bgg_id else None
-        member_pks = {int(raw) for raw in request.POST.getlist("members")}
-    except ValueError:
-        return HttpResponseBadRequest("Ids must be whole numbers.")
-    valid_pks = set(
-        Game.objects.filter(type=Game.Type.BASE, pk__in=member_pks)
-        .values_list("pk", flat=True)
-    )
-    if member_pks - valid_pks:
-        return HttpResponseBadRequest("Members must be base games.")
-
-    # Validate the cover BEFORE writing anything, so a bad upload on create
-    # never leaves an orphaned Family behind.
-    cover_data = None
-    upload = request.FILES.get("cover")
-    if upload:
-        cover_data = upload.read()
-        error, _ = _validate_cover_image(cover_data)
-        if error:
-            return HttpResponseBadRequest(error)
-
-    if family is None:
-        family = Family(name=name)
-    else:
-        family.name = name
-    family.bgg_family_id = bgg_family_id
-    family.note = request.POST.get("note", "").strip()
-    family.save()
-    family.members.set(member_pks)
+    """Shared create/update POST handler (issue #28: FamilyForm). Membership
+    is the M2M's forward side — one set() reconciles both directions."""
+    form = FamilyForm(request.POST, request.FILES, instance=family or Family())
+    if not form.is_valid():
+        return render(request, "family_edit.html",
+                       _family_edit_context(family, form))
+    family = form.save()
+    family.members.set(form.cleaned_data["members"])
 
     # Only the add page still posts a cover here (the #54 pattern) — once
     # the family exists, the htmx cover editor owns upload/URL/clear via
-    # family_cover_edit. Pre-validated above, so no error can surface.
-    if cover_data is not None:
-        _replace_cover(family, cover_data, f"family-{family.pk}")
+    # family_cover_edit. Pre-validated in the form, so no error can surface.
+    if getattr(form, "cover_data", None):
+        _replace_cover(family, form.cover_data, f"family-{family.pk}")
 
     return redirect("family_detail", pk=family.pk)
 
@@ -4012,7 +3793,8 @@ def _save_family(request, family):
 @login_required
 def family_add(request):
     if request.method != "POST":
-        return render(request, "family_edit.html", _family_edit_context(None))
+        return render(request, "family_edit.html",
+                       _family_edit_context(None, FamilyForm()))
     return _save_family(request, None)
 
 
@@ -4020,7 +3802,8 @@ def family_add(request):
 def family_edit(request, pk):
     family = get_object_or_404(Family, pk=pk)
     if request.method != "POST":
-        return render(request, "family_edit.html", _family_edit_context(family))
+        return render(request, "family_edit.html",
+                       _family_edit_context(family, FamilyForm(instance=family)))
     return _save_family(request, family)
 
 
@@ -4244,8 +4027,6 @@ def _edition_edit_context(game, edition, **extra):
         "game": game,
         "edition": edition,
         "other_default": other_default.first(),
-        "components_languages": Edition.ComponentsLanguage.choices,
-        "size_categories": Edition.SizeCategory.choices,
         **extra,
     }
     # The sleeve-requirement editor (issue #129) keys off a saved edition pk,
@@ -4256,58 +4037,19 @@ def _edition_edit_context(game, edition, **extra):
 
 
 def _save_edition(request, game, edition):
-    """Shared create/update POST handler (game_edit style: selects constrain
-    the browser, so out-of-vocabulary input is a 400). Blank name is legal —
-    it reads as "default edition" everywhere."""
-    if edition is None:
-        edition = Edition(game=game)
-    edition.name = request.POST.get("name", "").strip()
-
-    for field in ("components_language", "size_category"):
-        value = request.POST.get(field, "")
-        choices = Edition._meta.get_field(field).choices
-        if value and value not in dict(choices):
-            return HttpResponseBadRequest(f"Unknown {field} value.")
-        setattr(edition, field, value)
-
-    def parse_int(field):
-        raw = request.POST.get(field, "").strip()
-        if not raw:
-            return None
-        try:
-            value = int(raw)
-        except ValueError:
-            raise ValueError(f"{field} must be a whole number.")
-        if value < 0:
-            raise ValueError(f"{field} must not be negative.")
-        return value
-
-    try:
-        for field in ("bgg_version_id", "num_boxes", "box_length_mm",
-                      "box_width_mm", "box_height_mm"):
-            setattr(edition, field, parse_int(field))
-    except ValueError as error:
-        return HttpResponseBadRequest(str(error))
-
-    edition.is_pnp = "is_pnp" in request.POST
-    edition.is_default = "is_default" in request.POST
-    old_default = (
-        game.editions.filter(is_default=True).exclude(pk=edition.pk).first()
-        if edition.is_default else None
-    )
-    if old_default is not None:
-        # The template's confirm modal vouches for the switch; without its
-        # ride-along the POST can't tell intent from accident, so 400.
-        if request.POST.get("confirm_default_switch") != "1":
-            return HttpResponseBadRequest(
-                "The game already has a default edition — confirm the switch.")
-        old_default.is_default = False
-        old_default.name = request.POST.get("old_default_name", "").strip()
-        with transaction.atomic():
-            old_default.save()
-            edition.save()
-    else:
-        edition.save()
+    """Shared create/update POST handler (issue #28: EditionForm). Blank name
+    is legal — it reads as "default edition" everywhere."""
+    is_new = edition is None
+    form = EditionForm(request.POST, instance=edition or Edition(game=game), game=game)
+    if not form.is_valid():
+        return render(request, "edition_edit.html", _edition_edit_context(
+            game, None if is_new else edition, edition_form=form))
+    with transaction.atomic():
+        if form.old_default is not None:
+            form.old_default.is_default = False
+            form.old_default.name = form.cleaned_data["old_default_name"].strip()
+            form.old_default.save()
+        edition = form.save()
     return redirect("game_detail", pk=game.pk)
 
 
@@ -4315,8 +4057,8 @@ def _save_edition(request, game, edition):
 def edition_add(request, pk):
     game = get_object_or_404(Game, pk=pk)
     if request.method != "POST":
-        return render(request, "edition_edit.html",
-                      _edition_edit_context(game, None))
+        return render(request, "edition_edit.html", _edition_edit_context(
+            game, None, edition_form=EditionForm(instance=Edition(game=game), game=game)))
     return _save_edition(request, game, None)
 
 
@@ -4324,8 +4066,9 @@ def edition_add(request, pk):
 def edition_edit(request, pk):
     edition = get_object_or_404(Edition.objects.select_related("game"), pk=pk)
     if request.method != "POST":
-        return render(request, "edition_edit.html",
-                      _edition_edit_context(edition.game, edition))
+        return render(request, "edition_edit.html", _edition_edit_context(
+            edition.game, edition,
+            edition_form=EditionForm(instance=edition, game=edition.game)))
     return _save_edition(request, edition.game, edition)
 
 
