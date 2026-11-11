@@ -22,7 +22,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.files.base import ContentFile
 from django.core.mail import send_mail
 from django.db import transaction
-from django.db.models import Count, F, Max, Q
+from django.db.models import Count, F, Max, Q, prefetch_related_objects
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -30,7 +30,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
-from . import bgg_sync, ntfy
+from . import bgg_sync, list_columns, ntfy
 from .bgg import extract_bgg_id
 from .forms import (
     COVER_EXTENSIONS, CopyForm, EditionForm, FamilyForm, GameForm,
@@ -860,15 +860,8 @@ def _fold(text):
     return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
 
 
-def _active_copies(game):
-    """A game's non-archived copies across all its editions. Prefetch
-    "editions__copies" (or deeper) to avoid N+1."""
-    return [
-        copy
-        for edition in game.editions.all()
-        for copy in edition.copies.all()
-        if copy.archive_status == Copy.ArchiveStatus.ACTIVE
-    ]
+# Moved to list_columns (issue #54) so the column registry can share it.
+_active_copies = list_columns.active_copies
 
 
 def _game_matches(game, filters):
@@ -1076,101 +1069,55 @@ def _collapse_into_tiles(matching, incoming_pks, *, collapse, url_key,
     return tiles
 
 
-def _copy_summary(game):
-    """(count, location_label, keep_label) over a game's active copies
-    (issue #92 list view). Location/keep-status show the shared value when
-    every active copy agrees, else "multiple"/"mixed" — a single row can't
-    show one game's several copies individually."""
-    copies = _active_copies(game)
-    if not copies:
-        return 0, "—", "—"
-
-    locations = {copy.location_id for copy in copies}
-    if len(locations) > 1:
-        location_label = "multiple"
-    else:
-        location = copies[0].location
-        location_label = location.name if location else "no location set"
-
-    keep_statuses = {copy.keep_status for copy in copies}
-    if len(keep_statuses) > 1:
-        keep_label = "mixed"
-    else:
-        keep_label = copies[0].get_keep_status_display() or "—"
-
-    return len(copies), location_label, keep_label
+# What every list row reads regardless of column choice. The collection
+# querysets already prefetch these for matched games; a series row's
+# primary_game arrives via select_related without them, and
+# prefetch_related_objects skips instances that already have them cached.
+_LIST_ROW_PREFETCHES = (
+    "editions__copies__location", "editions__copies__loans",
+    "expansions__editions__copies", "families", "game_tags", "series",
+)
 
 
-def _annotate_list_row(tile):
-    """Attach list-view row data to a _collapse_into_tiles tile in place
-    (issue #92). A series row reports its primary_game's stats — the same
-    representative-game concept the grid already uses for the cover — so
-    the row tells one coherent story instead of mixing per-member values."""
-    game = tile["series"].primary_game if "series" in tile else tile["game"]
-    tile["stat_game"] = game
-    tile["players_low"], tile["players_high"] = game.effective_player_range()
-    tile["copy_count"], tile["location_label"], tile["keep_label"] = _copy_summary(game)
+def _list_view_context(request, tiles, filters, *, owner_view):
+    """Annotate + sort tiles for the list view (issues #92/#54) and return
+    (tiles, sort_columns). Columns come from the viewer's own Settings
+    selection (Membership.collection_columns), falling back to the defaults;
+    owner-only columns are dropped off the shared views. Only the prefetches
+    and queries the selected columns need are run."""
+    membership = getattr(request.user, "membership", None) if request.user.is_authenticated else None
+    columns = list_columns.resolve_columns(
+        membership.collection_columns if membership else [], owner_view=owner_view)
+    stat_games = [tile["series"].primary_game if "series" in tile else tile["game"]
+                  for tile in tiles]
+    prefetch_related_objects(
+        stat_games, *_LIST_ROW_PREFETCHES, *list_columns.column_prefetches(columns))
+    extras = {}
+    if any(column.key == "last_played" for column in columns):
+        extras["last_played"] = dict(
+            Play.objects.filter(game__in=stat_games).values("game_id")
+            .annotate(last=Max("play_date")).values_list("game_id", "last")
+        )
+    for tile in tiles:
+        list_columns.annotate_row(tile, columns, extras)
+    tiles = list_columns.sort_tiles(tiles, filters["sort"], columns)
+    return tiles, list_columns.sort_column_context(filters["sort"], columns)
 
 
-# Issue #92 follow-up: sortable list-view columns. Order here IS the column
-# order in game_list.html's <thead>/<tbody> — both are built by looping this
-# same list, so header and cells always line up. Owner-only columns are
-# appended separately, gated the same way the cells themselves are.
-_SORT_COLUMNS = [
-    ("name", "Name"), ("type", "Type"), ("year", "Year"),
-    ("players", "Players"), ("playtime", "Playtime"), ("weight", "Weight"),
-    ("rank", "BGG rank"),
-]
-_OWNER_SORT_COLUMNS = [
-    ("location", "Location"), ("keep", "Keep/leave"), ("copies", "Copies"),
-]
-_SORT_KEY_FUNCS = {
-    "name": lambda tile: tile["sort_key"],
-    "type": lambda tile: tile["stat_game"].get_type_display(),
-    "year": lambda tile: tile["stat_game"].year_published,
-    "players": lambda tile: tile["players_low"],
-    "playtime": lambda tile: tile["stat_game"].min_playtime,
-    "weight": lambda tile: tile["stat_game"].weight,
-    "rank": lambda tile: tile["stat_game"].bgg_rank,
-    "location": lambda tile: tile["location_label"],
-    "keep": lambda tile: tile["keep_label"],
-    "copies": lambda tile: tile["copy_count"],
-}
+_SESSION_VIEW_KEYS = {"view": "collection_view", "sort": "collection_sort"}
 
 
-def _sort_tiles_for_list(tiles, sort):
-    """Reorder annotated tiles by a "col" / "-col" sort spec from the query
-    string (issue #92 follow-up). Tiles missing the sorted value (e.g. no
-    year_published) sort last regardless of direction — pushing them to the
-    top on a descending sort would bury every game that actually has data."""
-    column = sort[1:] if sort.startswith("-") else sort
-    descending = sort.startswith("-")
-    key_func = _SORT_KEY_FUNCS.get(column, _SORT_KEY_FUNCS["name"])
-    present = [tile for tile in tiles if key_func(tile) is not None]
-    missing = [tile for tile in tiles if key_func(tile) is None]
-    present.sort(key=key_func, reverse=descending)
-    return present + missing
-
-
-def _sort_column_context(sort, *, owner_view):
-    """Per-column header state for game_list.html: the label, the sort spec
-    a click on this header should request next (toggling asc/desc on the
-    active column, defaulting to ascending on any other), and the arrow to
-    show now."""
-    columns = _SORT_COLUMNS + (_OWNER_SORT_COLUMNS if owner_view else [])
-    active_column = sort[1:] if sort.startswith("-") else sort
-    active_descending = sort.startswith("-")
-    context = []
-    for key, label in columns:
-        active = key == active_column
-        is_descending = active and active_descending
-        context.append({
-            "key": key,
-            "label": label,
-            "next_sort": key if is_descending else (f"-{key}" if active else key),
-            "direction": "desc" if is_descending else ("asc" if active else None),
-        })
-    return context
+def _remember_view_and_sort(request, filters):
+    """Issue #54: the owner's grid/list choice and list sort persist for the
+    session. An explicit ?view= / ?sort= wins and is remembered; a request
+    without them (a bare "/") restores the remembered value. filters feed the
+    chooser's hidden #f-view/#f-sort fields, so later htmx requests carry the
+    restored values along."""
+    for param, session_key in _SESSION_VIEW_KEYS.items():
+        if param in request.GET:
+            request.session[session_key] = filters[param]
+        elif session_key in request.session:
+            filters[param] = request.session[session_key]
 
 
 @login_required
@@ -1184,6 +1131,7 @@ def collection(request):
     anyway.
     """
     filters = _build_filters(request, owner_axes=True)
+    _remember_view_and_sort(request, filters)
 
     games = Game.objects.select_related("series__primary_game").prefetch_related(
         "expansions__editions__copies", "expansions__game_types",
@@ -1226,10 +1174,8 @@ def collection(request):
     )
     sort_columns = []
     if filters["view"] == "list":
-        for tile in tiles:
-            _annotate_list_row(tile)
-        tiles = _sort_tiles_for_list(tiles, filters["sort"])
-        sort_columns = _sort_column_context(filters["sort"], owner_view=True)
+        tiles, sort_columns = _list_view_context(
+            request, tiles, filters, owner_view=True)
 
     context = {
         "games": matching,
@@ -1269,7 +1215,7 @@ def _cull_priority(copy):
 # Issue #40: user-driven sorting for the curation table, independent of the
 # _cull_priority default above. Order here IS the column order in
 # cull_table.html's <thead> — the template loops this list for its first
-# four headers, same idiom as _SORT_COLUMNS/game_list.html.
+# four headers, same idiom as list_columns/game_list.html.
 _CURATION_SORT_COLUMNS = [
     ("name", "Game"), ("last_played", "Last played"),
     ("excitement", "Excitement"), ("keep", "Keep"),
@@ -1285,7 +1231,7 @@ _CURATION_SORT_KEY_FUNCS = {
 def _sort_copies_for_curation(copies, sort):
     """Reorder curation copies by a "col"/"-col" sort spec from the query
     string (issue #40). Missing values sink to the bottom regardless of
-    direction, same as the collection list's _sort_tiles_for_list — except
+    direction, same as the collection list's list_columns.sort_tiles — except
     last_played, where "never played" is the most cull-relevant state, not a
     data gap: it's treated as infinitely long ago via a date.min sentinel, so
     it sorts first on ascending (oldest-first) and last on descending."""
@@ -2234,10 +2180,8 @@ def _render_shared_collection(request, group, url_key, collection_url_name,
     )
     sort_columns = []
     if filters["view"] == "list":
-        for tile in tiles:
-            _annotate_list_row(tile)
-        tiles = _sort_tiles_for_list(tiles, filters["sort"])
-        sort_columns = _sort_column_context(filters["sort"], owner_view=False)
+        tiles, sort_columns = _list_view_context(
+            request, tiles, filters, owner_view=False)
     chooser_url = reverse(collection_url_name, args=[url_key])
     # The dropdowns list only theme/family labels actually used by the shared
     # set, never the owner's full private vocabulary — no owner data leaks
@@ -3161,6 +3105,17 @@ def settings_page(request):
         if "ntfy_topic" in request.POST:
             membership.ntfy_topic = request.POST.get("ntfy_topic", "").strip()
             fields.append("ntfy_topic")
+        # Issue #54: list-view columns. The checkboxes arrive in DOM order,
+        # which the ↑/↓ buttons rearrange, so getlist() IS the chosen order.
+        # The hidden marker scopes this to its own form — an unchecked box
+        # sends nothing, so presence of list_column can't be the signal.
+        if "list_columns_form" in request.POST:
+            if "reset_list_columns" in request.POST:
+                membership.collection_columns = []
+            else:
+                membership.collection_columns = list_columns.clean_column_keys(
+                    request.POST.getlist("list_column"))
+            fields.append("collection_columns")
         if fields:
             membership.save(update_fields=fields)
         return redirect("settings")  # PRG; the re-GET shows the new state
@@ -3176,6 +3131,7 @@ def settings_page(request):
         "user_email": request.user.email,
         "email_test_result": email_test if email_test in ("ok", "fail") else None,
         "pending_invites": request.user.invites_received.select_related("group"),
+        "list_column_rows": list_columns.settings_rows(membership.collection_columns),
     })
 
 

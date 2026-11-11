@@ -48,6 +48,7 @@ from gamekeeper.cover_preview import PREVIEW_SIZE, render_square_preview
 
 from gamekeeper.management.commands.import_sleeves import parse_dimensions
 from gamekeeper.ntfy import send_ntfy
+from gamekeeper.list_columns import DEFAULT_LIST_COLUMNS, LIST_COLUMNS, resolve_columns
 from gamekeeper.models import (
     Accessory,
     AccessoryCopy,
@@ -14965,3 +14966,169 @@ class SiteFooterTests(TestCase):
             response = self.client.get("/accounts/login/")
         self.assertContains(response, "GameKeeper")
         self.assertNotContains(response, "GameKeeper v")
+
+
+class CollectionListColumnsTests(TestCase):
+    """Issue #54: user-configurable list-view columns, their sort/summary
+    rules, the Settings card that picks them, and the session-remembered
+    view/sort."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(username="kernicek", password="pass")
+        cls.membership = cls.user.membership
+        cls.alpha = Game.objects.create(name="Alpha", bgg_numplays=3)
+        cls.beta = Game.objects.create(name="Beta")
+        cls.gamma = Game.objects.create(name="Gamma")
+        cls.copies = {}
+        for game, acquired in ((cls.alpha, datetime.date(2021, 5, 1)),
+                               (cls.beta, None), (cls.gamma, datetime.date(2019, 1, 1))):
+            edition = Edition.objects.create(game=game, is_default=True)
+            cls.copies[game.name] = Copy.objects.create(
+                owner=cls.user, edition=edition, acquired_date=acquired)
+        now = timezone.now()
+        Play.objects.create(game=cls.alpha, external_id="1",
+                            play_date=datetime.date(2024, 3, 1), synced_at=now)
+        Play.objects.create(game=cls.alpha, external_id="2",
+                            play_date=datetime.date(2025, 6, 2), synced_at=now)
+        Play.objects.create(game=cls.gamma, external_id="3",
+                            play_date=datetime.date(2023, 1, 1), synced_at=now)
+
+    def setUp(self):
+        self.client.login(username="kernicek", password="pass")
+
+    def set_columns(self, keys):
+        Membership.objects.filter(pk=self.membership.pk).update(collection_columns=keys)
+
+    def get(self, params=None):
+        return self.client.get("/", {"view": "list", "show_unavailable": "1", **(params or {})})
+
+    def tile(self, response, name):
+        return next(t for t in response.context["tiles"] if t["stat_game"].name == name)
+
+    def column_keys(self, response):
+        return [c["key"] for c in response.context["sort_columns"]]
+
+    # --- column selection -------------------------------------------------
+
+    def test_empty_selection_uses_the_default_columns(self):
+        self.assertEqual(self.column_keys(self.get()), DEFAULT_LIST_COLUMNS)
+
+    def test_saved_order_is_respected_and_name_stays_first(self):
+        self.set_columns(["plays", "year", "bogus", "name", "plays"])
+        response = self.get()
+        self.assertEqual(self.column_keys(response), ["name", "plays", "year"])
+        self.assertEqual(self.tile(response, "Alpha")["cells"], ["3", "—"])
+
+    def test_owner_only_columns_are_dropped_off_shared_views(self):
+        columns = resolve_columns(["excitement", "year", "loan"], owner_view=False)
+        self.assertEqual([c.key for c in columns], ["name", "year"])
+
+    def test_every_registered_column_renders(self):
+        self.set_columns([c.key for c in LIST_COLUMNS])
+        for key in [c.key for c in LIST_COLUMNS]:
+            for sort in (key, f"-{key}"):
+                response = self.get({"sort": sort})
+                self.assertEqual(response.status_code, 200, sort)
+        self.assertContains(response, "Last played")
+        self.assertContains(response, "3D insert")
+
+    # --- individual columns -----------------------------------------------
+
+    def test_last_played_shows_latest_play_and_sorts_missing_last(self):
+        self.set_columns(["last_played"])
+        ascending = self.get({"sort": "last_played"})
+        self.assertEqual(self.tile(ascending, "Alpha")["cells"], ["2025-06-02"])
+        names = [t["stat_game"].name for t in ascending.context["tiles"]]
+        self.assertEqual(names, ["Gamma", "Alpha", "Beta"])
+        descending = self.get({"sort": "-last_played"})
+        names = [t["stat_game"].name for t in descending.context["tiles"]]
+        self.assertEqual(names, ["Alpha", "Gamma", "Beta"])
+
+    def test_added_uses_acquired_date_falling_back_to_created(self):
+        self.set_columns(["added"])
+        response = self.get({"sort": "added"})
+        self.assertEqual(self.tile(response, "Gamma")["cells"], ["2019-01-01"])
+        created = self.copies["Beta"].created_at.date().isoformat()
+        self.assertEqual(self.tile(response, "Beta")["cells"], [created])
+
+    def test_sleeve_summary_labels(self):
+        size = CardSize.objects.create(width_mm=Decimal("63.5"), height_mm=Decimal("88"))
+        Status = CopySleeveStatus.Status
+
+        def statuses(game_name, *values):
+            copy = self.copies[game_name]
+            for value in values:
+                requirement = SleeveRequirement.objects.create(
+                    edition=Edition.objects.create(game=copy.edition.game),
+                    card_size=size, count=10)
+                CopySleeveStatus.objects.create(copy=copy, requirement=requirement, status=value)
+
+        statuses("Alpha", Status.SLEEVED, Status.SLEEVED)
+        statuses("Beta", Status.SLEEVED, Status.TO_SLEEVE)
+        statuses("Gamma", Status.TO_SLEEVE, Status.NOT_SLEEVED)
+        self.set_columns(["sleeves"])
+        response = self.get({"sort": "sleeves"})
+        labels = {t["stat_game"].name: t["cells"][0] for t in response.context["tiles"]}
+        self.assertEqual(labels, {"Alpha": "Sleeved", "Beta": "Partial", "Gamma": "To sleeve"})
+        self.assertEqual([t["stat_game"].name for t in response.context["tiles"]],
+                         ["Alpha", "Beta", "Gamma"])
+
+    def test_sleeve_summary_without_statuses_is_missing(self):
+        self.set_columns(["sleeves"])
+        self.assertEqual(self.tile(self.get(), "Alpha")["cells"], ["—"])
+
+    def test_loan_and_upgrade_columns(self):
+        Loan.objects.create(copy=self.copies["Alpha"], direction=Loan.Direction.LENT_OUT,
+                            counterparty_name="Pavel",
+                            expected_return_date=datetime.date(2026, 12, 24))
+        Copy.objects.filter(pk=self.copies["Beta"].pk).update(insert_3d=Copy.UpgradeStatus.DONE)
+        self.set_columns(["loan", "loan_due", "insert_3d"])
+        response = self.get()
+        self.assertEqual(self.tile(response, "Alpha")["cells"],
+                         ["Lent to Pavel", "2026-12-24", "—"])
+        self.assertEqual(self.tile(response, "Beta")["cells"], ["—", "—", "Done"])
+
+    # --- settings ---------------------------------------------------------
+
+    def test_settings_post_saves_the_ordered_selection(self):
+        response = self.client.post("/settings/", {
+            "list_columns_form": "1", "list_column": ["sleeves", "year", "bogus"],
+        })
+        self.assertEqual(response.status_code, 302)
+        self.membership.refresh_from_db()
+        self.assertEqual(self.membership.collection_columns, ["sleeves", "year"])
+
+    def test_settings_reset_clears_the_selection(self):
+        self.set_columns(["year"])
+        self.client.post("/settings/", {
+            "list_columns_form": "1", "list_column": ["year"], "reset_list_columns": "1",
+        })
+        self.membership.refresh_from_db()
+        self.assertEqual(self.membership.collection_columns, [])
+
+    def test_other_settings_forms_leave_the_columns_alone(self):
+        self.set_columns(["year"])
+        self.client.post("/settings/", {"ntfy_topic": "my-topic"})
+        self.membership.refresh_from_db()
+        self.assertEqual(self.membership.collection_columns, ["year"])
+
+    def test_settings_page_lists_selected_columns_first(self):
+        self.set_columns(["sleeves", "year"])
+        rows = self.client.get("/settings/").context["list_column_rows"]
+        self.assertEqual([(c.key, sel) for c, sel in rows[:3]],
+                         [("sleeves", True), ("year", True), ("type", False)])
+
+    # --- session-remembered view/sort -------------------------------------
+
+    def test_view_and_sort_are_remembered_for_a_bare_url(self):
+        self.client.get("/", {"view": "list", "sort": "-weight"})
+        response = self.client.get("/")
+        self.assertEqual(response.context["filters"]["view"], "list")
+        self.assertEqual(response.context["filters"]["sort"], "-weight")
+        self.assertContains(response, 'id="f-view" value="list"')
+
+    def test_explicit_view_overrides_the_remembered_one(self):
+        self.client.get("/", {"view": "list"})
+        self.client.get("/", {"view": "grid"})
+        self.assertEqual(self.client.get("/").context["filters"]["view"], "grid")

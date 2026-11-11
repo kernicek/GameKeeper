@@ -149,9 +149,66 @@ has_password badge and empty inputs to replace/clear it.
             </div>
         </div>
     </div>
+    <div class="col-lg-6">
+        <div class="card mt-4">
+            <div class="card-header">Collection list columns</div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Choose which columns the collection's list view shows, and
+                    in which order. Name is always the first column. Columns
+                    marked <i class="bi bi-lock" aria-label="private"></i> are
+                    private and never appear on your shared collection.
+                </p>
+                <form method="post" action="{% url 'settings' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="list_columns_form" value="1">
+                    <ul class="list-group mb-3" id="list-columns">
+                        {% for column, selected in list_column_rows %}
+                        <li class="list-group-item d-flex align-items-center gap-2 py-1">
+                            <input class="form-check-input mt-0" type="checkbox" name="list_column"
+                                   value="{{ column.key }}" id="f-col-{{ column.key }}"
+                                   {% if selected %}checked{% endif %}>
+                            <label class="form-check-label flex-grow-1" for="f-col-{{ column.key }}">
+                                {{ column.label }}
+                                {% if column.owner_only %}<i class="bi bi-lock text-secondary" title="Private" aria-label="private"></i>{% endif %}
+                                <span class="text-secondary small">· {{ column.group }}</span>
+                            </label>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                                    data-move="up" aria-label="Move {{ column.label }} up">
+                                <i class="bi bi-arrow-up" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                                    data-move="down" aria-label="Move {{ column.label }} down">
+                                <i class="bi bi-arrow-down" aria-hidden="true"></i>
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <button class="btn btn-primary" type="submit">Save</button>
+                    <button class="btn btn-outline-secondary" type="submit" name="reset_list_columns" value="1">
+                        Reset to default
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
+    // Issue #54: ↑/↓ reorder the column rows in place. The form posts the
+    // checked boxes in DOM order, so moving the <li> is all it takes.
+    document.getElementById("list-columns").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-move]");
+        if (!button) return;
+        const item = button.closest("li");
+        if (button.dataset.move === "up" && item.previousElementSibling) {
+            item.parentNode.insertBefore(item, item.previousElementSibling);
+        } else if (button.dataset.move === "down" && item.nextElementSibling) {
+            item.parentNode.insertBefore(item.nextElementSibling, item);
+        }
+        button.focus();
+    });
+
     // Test-notification button (issue #162): only enabled once a topic is
     // both non-blank and matches what's actually saved — defaultValue holds
     // the server-rendered (saved) value, unaffected by in-progress typing,

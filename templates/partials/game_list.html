@@ -1,5 +1,6 @@
 {% if tiles %}
-<div class="card">
+{# gk-game-list: app.css widens <main> to full width while this table shows (issue #54). #}
+<div class="card gk-game-list">
     <div class="card-body p-0">
         <div class="table-responsive">
         <table class="table table-sm mb-0 align-middle">
@@ -45,25 +46,12 @@
                     {% else %}
                     <td><a href="{{ tile.detail_url }}">{{ tile.game.name }}</a></td>
                     {% endif %}
-                    <td>{{ tile.stat_game.get_type_display }}</td>
-                    <td>{{ tile.stat_game.year_published|default:"—" }}</td>
-                    <td>
-                        {% if tile.players_low or tile.players_high %}
-                        {{ tile.players_low|default:"?" }}–{{ tile.players_high|default:"?" }}
-                        {% else %}—{% endif %}
-                    </td>
-                    <td>
-                        {% if tile.stat_game.min_playtime or tile.stat_game.max_playtime %}
-                        {{ tile.stat_game.min_playtime|default:tile.stat_game.max_playtime }}{% if tile.stat_game.max_playtime and tile.stat_game.min_playtime != tile.stat_game.max_playtime %}–{{ tile.stat_game.max_playtime }}{% endif %} min
-                        {% else %}—{% endif %}
-                    </td>
-                    <td>{% if tile.stat_game.weight %}{{ tile.stat_game.weight }} / 5{% else %}—{% endif %}</td>
-                    <td>{{ tile.stat_game.bgg_rank|default:"—" }}</td>
-                    {% if owner_view %}
-                    <td>{{ tile.location_label }}</td>
-                    <td>{{ tile.keep_label }}</td>
-                    <td>{{ tile.copy_count }}</td>
-                    {% endif %}
+                    {# Issue #54: the rest of the row follows the viewer's chosen #}
+                    {# columns — list_columns.annotate_row pre-renders each cell #}
+                    {# in the same order as sort_columns. #}
+                    {% for cell in tile.cells %}
+                    <td>{{ cell }}</td>
+                    {% endfor %}
                 </tr>
                 {% endfor %}
             </tbody>

@@ -362,3 +362,11 @@ img.hero-cover {
 .shortfall-row-toggle {
     cursor: pointer;
 }
+
+/* Issue #54: the collection list view uses the full window width on large
+   screens — :has() follows htmx swaps between grid and list, so no JS or
+   per-page container switch is needed. Other pages keep the centered
+   container. */
+main.container:has(.gk-game-list) {
+    max-width: none;
+}
