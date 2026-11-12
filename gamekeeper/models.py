@@ -145,6 +145,10 @@ class Membership(models.Model):
     # a secret — blank means the user hasn't opted into pushes, so
     # send_reminder_emails skips them (email-only, as before).
     ntfy_topic = models.CharField(max_length=100, blank=True, default="")
+    # Issue #54: the collection list view's columns, as an ordered list of
+    # gamekeeper.list_columns keys ("name" is implicit and always first).
+    # Empty = the default set. Picked on the Settings page.
+    collection_columns = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return f"{self.user} in {self.group} ({self.role})"
